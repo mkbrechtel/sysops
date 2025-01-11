@@ -41,9 +41,9 @@ export default defineConfig({
           autogenerate: { directory: "deployment" },
         },
       ],
-      // editLink: {
-      //   baseUrl: 'https://github.com/mkbrechtel/patterns/edit/main/',
-      // },
+      editLink: {
+        baseUrl: 'https://github.com/mkbrechtel/patterns/edit/main/',
+      },
     }),
   ],
 });
