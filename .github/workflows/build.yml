@@ -31,7 +31,7 @@ jobs:
         run: npm run build
 
       - name: Copy markdown files to dist
-        run: rsync -av --include="*.md" --include="*/" --exclude="*"
+        run: rsync -av --include="*.md" --include="*/" --exclude="*" docs/ dist/
 
       # Upload artifact
       - name: Upload Pages artifact
