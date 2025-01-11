@@ -5,14 +5,17 @@ import starlight from "@astrojs/starlight";
 // https://astro.build/config
 export default defineConfig({
   site: "https://patterns.mkbrechtel.dev",
-  trailingSlash: 'never',
+  trailingSlash: "never",
+  build: {
+    format: "file",
+  },
   integrations: [
     starlight({
       title: "Cute Patterns!",
       logo: {
-        src: './public/emoji_u1f4a0.svg',
+        src: "./public/emoji_u1f4a0.svg",
       },
-      favicon: '/emoji_u1f4a0.svg',
+      favicon: "/emoji_u1f4a0.svg",
       social: {
         github: "https://github.com/mkbrechtel/patterns",
       },
