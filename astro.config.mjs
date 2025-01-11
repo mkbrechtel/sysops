@@ -9,7 +9,7 @@ const docsPath = './docs/';
 
 const topSidebar =  [
   {
-    label: "Cute Patterns! 💠",
+    label: "Cute Patterns! 🔷",
     link: "/",
   },
 ]
@@ -56,7 +56,7 @@ export default defineConfig({
     starlight({
       title: "Cute Patterns!",
       logo: {
-        src: "./public/emoji_u1f4a0.svg",
+        src: "./public/emoji_u1f537.svg",
       },
       favicon: "/emoji_u1f4a0.svg",
       social: {

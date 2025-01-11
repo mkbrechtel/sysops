@@ -1,10 +1,10 @@
 ---
-title: Pattern Pattern 💠²
+title: Pattern Pattern 🔷²
 ---
 ## Overview 📋
 The Pattern Pattern describes how to effectively document and structure patterns to make them useful, maintainable, and approachable. It provides a consistent format for capturing knowledge, best practices, and solutions to recurring problems.
 
-## What is a pattern? 💠
+## What is a pattern? 🔷
 
 A pattern is a reusable solution template that addresses a common recurring problem in a specific context. Patterns capture proven practices, hard-won insights, and collective wisdom in a structured format that others can learn from and apply. By documenting patterns, we create a shared vocabulary and knowledge base that helps teams solve similar challenges consistently and effectively.
 

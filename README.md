@@ -1,4 +1,4 @@
-# Cute Patterns! 💠
+# Cute Patterns! 🔷
 
 This repo describes [cute](./docs/practice/cuteness.md) [patterns](./docs/knowledge/pattern.md) to successfully work and get stuff done in the context of the projects of [me](https://mkbrechtel.dev), my team at the IDMKD and other projects. ✨
 
