@@ -2,7 +2,7 @@
 title: Cuteness Pattern 🌸
 ---
 
-Cute things are nice to have around and are not threatening. ✨ They provide people with joy and a feeling of safety. 🤗 They are relatable by humans and easy to work with. This pattern is about making things we work with "cute". 🌈 This means providing working conditions that make it easy for us to achieve things without getting drained or adding unnecessary complexity. 🦄
+Cute things are nice to have around and are not threatening. ✨ They provide people with joy and a feeling of safety, are relatable to humans and easy to work with. 🤗  This pattern is about making things we work with "cute". 🌈 This means providing working conditions that make it easy for us to achieve things without getting drained or adding unnecessary complexity. 🦄
 
 ## Goals 🎯
 - Create approachable and friendly experiences in work environments
@@ -15,6 +15,7 @@ Cute things are nice to have around and are not threatening. ✨ They provide pe
 ## Implementation 🌟
 
 Implementation of Cuteness varies when it comes to different areas. This is a meta pattern that needs to be specified for different working areas.
+The key to implementing cuteness is to identify areas where complexity, stress, or friction can be reduced through thoughtful design and human-centered approaches. By making systems and processes more approachable and user-friendly, we create environments that promote wellbeing and productivity.
 
 ## Anti-patterns to Avoid ⚠️
 - Overly complex solutions
@@ -30,22 +31,20 @@ Implementation of Cuteness varies when it comes to different areas. This is a me
 
 ## Examples ✨
 
-The key to implementing cuteness is to identify areas where complexity, stress, or friction can be reduced through thoughtful design and human-centered approaches. By making systems and processes more approachable and user-friendly, we create environments that promote wellbeing and productivity. Here are some examples across different domains:
+Here are some examples across different domains:
 
-### Infrastructure 🐳
-- Using friendly names for servers (e.g., "coral", "dolphin")
-- Clear and simple folder structures
-- Well-documented setup procedures
-- Easy-to-remember command aliases
-
-### Development 🌈
-- Clean and readable code
-- Helpful error messages
-- User-friendly interfaces
-- Simple deployment processes
-
-### Communication 🦄
-- Clear and friendly documentation
-- Welcoming onboarding processes
-- Supportive feedback mechanisms
-- Emoji usage in appropriate contexts
+- Infrastructure 🐳
+  - Using friendly names for servers (e.g., "coral", "dolphin")
+  - Clear and simple folder structures
+  - Well-documented setup procedures
+  - Easy-to-remember command aliases
+- Development 🌈
+  - Clean and readable code
+  - Helpful error messages
+  - User-friendly interfaces
+  - Simple deployment processes
+- Communication 🦄
+  - Clear and friendly documentation
+  - Welcoming onboarding processes
+  - Supportive feedback mechanisms
+  - Emoji usage in appropriate contexts
