@@ -30,6 +30,9 @@ jobs:
       - name: Build site
         run: npm run build
 
+      - name: Copy markdown files to dist
+        run: rsync -av --include="*.md" --include="*/" --exclude="*"
+
       # Upload artifact
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
