@@ -3,12 +3,12 @@ package web
 import (
     "fmt"
     "net/http"
-    "patterns.mkbrechtel.dev/content"
+    "patterns.mkbrechtel.dev/docs"
 )
 
 func Webserver() {
     mux := http.NewServeMux()
-    fileServer := http.FileServer(http.FS(content.ContentFiles))
+    fileServer := http.FileServer(http.FS(docs.ContentFiles))
     mux.Handle("/", fileServer)
 
     fmt.Println("Starting server on :4780")

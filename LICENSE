@@ -3,7 +3,7 @@ and Contributors (see CONTRIBUTIONS.md)
 
 You may not use the files in this repository except in compliance with one of the licenses.
 
-Files in the content/-directory (which is also symlinked from src/content/docs) are licensed under a Creative Commons Attribution–Share Alike 4.0 International license (”CC-BY-SA”). You can obtain a copy of the CC-BY-SA license at: https://creativecommons.org/licenses/by-sa/4.0/
+Files in the docs/-directory (which is also symlinked from src/content/docs) are licensed under a Creative Commons Attribution–Share Alike 4.0 International license (”CC-BY-SA”). You can obtain a copy of the CC-BY-SA license at: https://creativecommons.org/licenses/by-sa/4.0/
 
 The file public/emoji_u1f4a0.svg is Copyright 2013 Google LLC and is licensed under the SIL Open Font License, Version 1.1, see below.
 
