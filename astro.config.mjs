@@ -5,6 +5,7 @@ import starlight from "@astrojs/starlight";
 // https://astro.build/config
 export default defineConfig({
   site: "https://patterns.mkbrechtel.dev",
+  trailingSlash: 'never',
   integrations: [
     starlight({
       title: "Cute Patterns!",
