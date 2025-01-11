@@ -14,6 +14,9 @@ function getCategories() {
 }
 
 // Get all markdown files in a directory
+/**
+ * @param {string} dir
+ */
 function getMdFiles(dir) {
   return fs.readdirSync(dir)
     .filter(file => file.endsWith('.md'))
