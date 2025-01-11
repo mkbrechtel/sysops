@@ -7,6 +7,13 @@ import path from 'path';
 
 const docsPath = './docs/';
 
+const topSidebar =  [
+  {
+    label: "Cute Patterns! 💠",
+    link: "/",
+  },
+]
+
 // Get all category directories
 function getCategories() {
   return fs.readdirSync(docsPath)
@@ -29,11 +36,13 @@ export function createSidebar() {
   const categories = getCategories();
 
   // Create menu structure
-  return categories.map(category => ({
+  const categorySidebar = categories.map(category => ({
     label: category.charAt(0).toUpperCase() + category.slice(1),
     items: getMdFiles(path.join(docsPath, category))
       .map(file => `${category}/${file}`)
   }));
+  return [...topSidebar, ...categorySidebar]
+  
 }
 
 // https://astro.build/config
