@@ -1,5 +1,6 @@
-# Docker/Podman Compose Service Pattern 🐋
-
+---
+title: Compose Service Pattern 🐋
+---
 ## Overview 📋
 This pattern describes how to structure and manage services running with docker-compose on Debian stable systems.
 

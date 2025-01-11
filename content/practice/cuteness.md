@@ -1,4 +1,6 @@
-# Cuteness Pattern 🌸
+---
+title: Cuteness Pattern 🌸
+---
 
 Cute things are nice to have around and are not threatening. ✨ They provide people with joy and a feeling of safety. 🤗 They are relatable by humans and easy to work with. This pattern is about making things we work with "cute". 🌈 This means making the working conditions so they make it easy for us to achieve things without getting drained or adding unnecessary complexity. 🦄
 

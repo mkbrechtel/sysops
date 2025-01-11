@@ -1,4 +1,6 @@
-# Ideas! ⚡
+---
+title: Ideas! ⚡
+---
 
 ## Categories
 - Collaboration & Communication & 🤝

@@ -1,4 +1,6 @@
-# Stages Pattern 🎭
+---
+title: Stages Pattern 🎭
+---
 
 ## Overview 📋
 

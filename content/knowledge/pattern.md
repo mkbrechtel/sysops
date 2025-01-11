@@ -1,5 +1,6 @@
-# Pattern Pattern 💠²
-
+---
+title: Pattern Pattern 💠²
+---
 ## Overview 📋
 The Pattern Pattern describes how to effectively document and structure patterns to make them useful, maintainable, and approachable. It provides a consistent format for capturing knowledge, best practices, and solutions to recurring problems.
 
