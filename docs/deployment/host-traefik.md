@@ -14,11 +14,11 @@ Host-based Traefik pattern provides centralized HTTPS termination and routing fo
 ## Directory Structure
 
 ```bash
-/srv/traefik/#
-├── docker-compose.yaml     # Traefik compose configuration
+/srv/traefik/
+├── docker-compose.yaml    # Traefik compose configuration
 ├── traefik.yaml           # Main Traefik configuration
-└── conf.d/                # Service configurations
-    └── service.yaml       # Per-service routing rules
+└──  conf.d/                # Service configurations
+      └── {hostname}.yaml   # Per-service routing rules
 ```
 
 ## Usage
@@ -35,7 +35,7 @@ networks:
     external: true
 ```
 
-3. Configure routing in /srv/traefik/conf.d/service.yaml:
+3. Configure routing in `/srv/traefik/conf.d/{hostname}.yaml`:
 ```yaml
 http:
   routers:
@@ -58,4 +58,4 @@ http:
 - Network isolation via proxy network
 - TLS certificate management
 
-For detailed setup instructions see the [Docker/Podman Compose Service Pattern](./compose-service.md) documentation.
+For detailed setup instructions see the [Docker/Podman Compose Service Pattern](./compose-service) documentation.
