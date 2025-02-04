@@ -1,5 +1,7 @@
 ---
 title: Ideas! ⚡
+sidebar:
+  hidden: true
 ---
 
 ## Categories

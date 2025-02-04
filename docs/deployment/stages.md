@@ -1,5 +1,7 @@
 ---
 title: Stages Pattern 🎭
+sidebar:
+  order: 1
 ---
 
 ## Overview 📋
