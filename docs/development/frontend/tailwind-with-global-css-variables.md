@@ -54,7 +54,7 @@ To ensure the global variables are available at runtime and not part of the Vite
   <!-- Load global CSS variables directly -->
   <link rel="stylesheet" href="/global.css">
   <!-- Then load your compiled Tailwind CSS -->
-  <link rel="stylesheet" href="/assets/main.css">
+  <link rel="stylesheet" href="/main.css">
 </head>
 <body>
   <!-- Your application content -->
