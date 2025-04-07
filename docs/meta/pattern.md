@@ -22,50 +22,53 @@ Patterns are more than just technical solutions - they represent a holistic appr
 ### Essential Elements
 
 1. **Title and Emoji** 📌
-   - Clear, descriptive name
-   - Relevant emoji for visual recognition
-   - Example: "# Docker Compose Service Pattern 🐋"
+  - Clear, descriptive name
+  - Relevant emoji for visual recognition
+  - Example: "# Docker Compose Service Pattern 🐋"
 
 2. **Overview** 📋
-   - Brief description (2-3 sentences)
-   - Problem space addressed
-   - Context where pattern applies
+  - Brief description (2-3 sentences)
+  - Problem space addressed
+  - Context where pattern applies
 
 3. **Goals** 🎯
-   - Specific objectives
-   - Expected outcomes
-   - Success criteria
+  - Specific objectives
+  - Expected outcomes
+  - Success criteria
 
 4. **Core Content** 📚
-   - Detailed implementation guidance
-   - Code examples when applicable
-   - Configuration samples
-   - Visual diagrams where helpful
+  - Detailed implementation guidance
+  - Code examples when applicable
+  - Configuration samples
+  - Visual diagrams where helpful
 
 5. **Security Considerations** 🔐
-   - Potential risks
-   - Security best practices
-   - Compliance requirements
+  - Potential risks
+  - Security best practices
+  - Compliance requirements
 
 6. **Anti-patterns** ⚠️
-   - Common mistakes
-   - What to avoid
-   - Why they're problematic
+  - Common mistakes
+  - What to avoid
+  - Why they're problematic
 
 7. **Best Practices** 💡
-   - Proven approaches
-   - Tips and tricks
-   - Lessons learned
+  - Proven approaches
+  - Tips and tricks
+  - Lessons learned
 
 8. **Checklist** ✅
-   - Implementation steps
-   - Verification points
-   - Quality criteria
+  - Implementation steps
+  - Verification points
+  - Quality criteria
 
 9. **Related Patterns** 🔗
-   - Links to complementary patterns
-   - Prerequisites
-   - Alternative approaches
+  - Links to complementary patterns
+  - Prerequisites
+  - Alternative approaches
+
+10. **References 📚**
+  - Links to relevant resources, articles, books
 
 ## Writing Guidelines 📝
 
