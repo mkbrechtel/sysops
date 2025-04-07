@@ -39,7 +39,32 @@ Create a CSS file with your global variables:
 }
 ```
 
-### 2. Install Tailwind CSS with Vite Plugin
+### 2. Load Global CSS Variables at Runtime
+
+To ensure the global variables are available at runtime and not part of the Vite build process, include the global.css file directly in your HTML file:
+
+```html
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Application</title>
+  <!-- Load global CSS variables directly -->
+  <link rel="stylesheet" href="/global.css">
+  <!-- Then load your compiled Tailwind CSS -->
+  <link rel="stylesheet" href="/assets/main.css">
+</head>
+<body>
+  <!-- Your application content -->
+</body>
+</html>
+```
+
+This approach ensures the global variables are loaded independently from the build process and can be easily modified without recompiling Tailwind.
+
+### 3. Install Tailwind CSS with Vite Plugin
 
 With Tailwind CSS v4, the integration with Vite is more streamlined using the official plugin:
 
@@ -47,7 +72,9 @@ With Tailwind CSS v4, the integration with Vite is more streamlined using the of
 npm install tailwindcss @tailwindcss/vite
 ```
 
-### 3. Configure the Vite Plugin
+> **Note:** The actual Tailwind integration depends on the framework you're using. For example, Astro has its own [Astro Tailwind Plugin](https://github.com/withastro/astro/tree/main/packages/astro-tailwind-plugin), and other frameworks may have specific integration methods.
+
+### 4. Configure the Vite Plugin
 
 Add the `@tailwindcss/vite` plugin to your Vite configuration:
 
@@ -63,31 +90,22 @@ export default defineConfig({
 })
 ```
 
-### 4. Import Tailwind CSS in Your Stylesheet
+> **Note:** The actual Tailwind integration depends on the framework you're using. For example, Astro has its own [Astro Tailwind Plugin](https://github.com/withastro/astro/tree/main/packages/astro-tailwind-plugin), and other frameworks may have specific integration methods.
 
-Create a main CSS file that imports Tailwind and includes your variables:
+### 5. Create Tailwind CSS Main File
 
-```css
-/* main.css */
-@import "tailwindcss";
-
-:root {
-  --color-primary: #3b82f6;
-  /* All other variables from step 1 */
-}
-```
-
-Alternatively, you can keep variables separate and import them:
+Create a main CSS file that imports only Tailwind (without the variables):
 
 ```css
 /* main.css */
 @import "tailwindcss";
-@import "./variables.css";
 ```
 
-### 5. Configure Tailwind
+Note that we're not importing global variables here since they will be loaded directly at runtime.
 
-Extend your Tailwind configuration to use these variables:
+### 6. Configure Tailwind
+
+Extend your Tailwind configuration to use the runtime CSS variables:
 
 ```javascript
 // tailwind.config.js
@@ -121,9 +139,7 @@ module.exports = {
 }
 ```
 
-> **Note:** The actual Tailwind integration depends on the framework you're using. For example, Astro has its own [Astro Tailwind Plugin](https://github.com/withastro/astro/tree/main/packages/astro-tailwind-plugin), and other frameworks may have specific integration methods.
-
-### 6. Start Your Build Process
+### 7. Start Your Build Process
 
 Run your build process with Vite:
 
@@ -131,25 +147,37 @@ Run your build process with Vite:
 npm run dev
 ```
 
-### 7. Implement Theme Switching
+### 8. Implement Theme Switching
 
-For dark mode or theme switching, add media query or class-based overrides:
+For dark mode or theme switching, create separate theme CSS files that override the variables, and load them as needed:
 
 ```css
-/* For automatic dark mode */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-text: #f3f4f6;
-    --color-background: #111827;
-    /* Adjust other colors as needed */
-  }
-}
-
-/* For class-based theme switching */
-.dark-theme {
+/* dark-theme.css */
+:root {
   --color-text: #f3f4f6;
   --color-background: #111827;
-  /* Other color adjustments */
+  /* Adjust other colors as needed */
+}
+```
+
+You can then dynamically load this theme file at runtime:
+
+```javascript
+// Toggle theme function
+function toggleDarkMode() {
+  const darkThemeLink = document.getElementById('dark-theme');
+
+  if (darkThemeLink) {
+    // Remove dark theme if it exists
+    darkThemeLink.remove();
+  } else {
+    // Add dark theme if it doesn't exist
+    const link = document.createElement('link');
+    link.id = 'dark-theme';
+    link.rel = 'stylesheet';
+    link.href = '/dark-theme.css';
+    document.head.appendChild(link);
+  }
 }
 ```
 
@@ -201,11 +229,12 @@ This approach allows all services to automatically receive theme updates when th
 - Test themes across different browsers and devices
 
 ## Checklist 📋
-- [ ] Define base color palette as CSS variables
+- [ ] Define base color palette as CSS variables in global.css
+- [ ] Load global.css directly in HTML, outside of the build process
 - [ ] Install Tailwind CSS and Vite plugin
 - [ ] Configure Vite to use Tailwind plugin
 - [ ] Configure Tailwind to use CSS variables
-- [ ] Create theme variations (light/dark)
+- [ ] Create theme variations (light/dark) as separate CSS files
 - [ ] Test color contrast for accessibility
 - [ ] Document the color system
 - [ ] Create example components showcasing the theming system
