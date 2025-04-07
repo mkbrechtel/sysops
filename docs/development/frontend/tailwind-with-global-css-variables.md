@@ -17,10 +17,10 @@ The Tailwind CSS with Global Variables Pattern offers a maintainable approach to
 
 ### 1. Define Global CSS Variables
 
-First, create a dedicated CSS file for your global variables. This file should be loaded at runtime and independent of Tailwind:
+Create a CSS file with your global variables:
 
 ```css
-/* variables.css */
+/* global.css */
 :root {
   --color-primary: #3b82f6;
   --color-primary-light: #60a5fa;
@@ -39,32 +39,59 @@ First, create a dedicated CSS file for your global variables. This file should b
 }
 ```
 
-Include this file in your HTML before your main stylesheet:
+### 2. Install Tailwind CSS with Vite Plugin
 
-```html
-<link rel="stylesheet" href="variables.css">
-<link rel="stylesheet" href="main.css">
+With Tailwind CSS v4, the integration with Vite is more streamlined using the official plugin:
+
+```bash
+npm install tailwindcss @tailwindcss/vite
 ```
 
-### 2. Initialize Tailwind CSS
+### 3. Configure the Vite Plugin
 
-In your main CSS file, import Tailwind's directives:
+Add the `@tailwindcss/vite` plugin to your Vite configuration:
+
+```javascript
+// vite.config.js or vite.config.ts
+import { defineConfig } from 'vite'
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [
+    tailwindcss(),
+  ],
+})
+```
+
+### 4. Import Tailwind CSS in Your Stylesheet
+
+Create a main CSS file that imports Tailwind and includes your variables:
 
 ```css
 /* main.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+:root {
+  --color-primary: #3b82f6;
+  /* All other variables from step 1 */
+}
 ```
 
-This separation ensures that your variables are defined independently from Tailwind's compilation process, giving you more flexibility for theming.
+Alternatively, you can keep variables separate and import them:
 
-### 3. Configure Tailwind
+```css
+/* main.css */
+@import "tailwindcss";
+@import "./variables.css";
+```
+
+### 5. Configure Tailwind
 
 Extend your Tailwind configuration to use these variables:
 
 ```javascript
 // tailwind.config.js
+/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ["./src/**/*.{html,js,jsx,ts,tsx}"],
   theme: {
@@ -94,7 +121,17 @@ module.exports = {
 }
 ```
 
-### 4. Implement Theme Switching
+> **Note:** The actual Tailwind integration depends on the framework you're using. For example, Astro has its own [Astro Tailwind Plugin](https://github.com/withastro/astro/tree/main/packages/astro-tailwind-plugin), and other frameworks may have specific integration methods.
+
+### 6. Start Your Build Process
+
+Run your build process with Vite:
+
+```bash
+npm run dev
+```
+
+### 7. Implement Theme Switching
 
 For dark mode or theme switching, add media query or class-based overrides:
 
@@ -116,7 +153,7 @@ For dark mode or theme switching, add media query or class-based overrides:
 }
 ```
 
-### 5. Additional Approaches (Optional)
+### 8. Additional Approaches (Optional)
 
 For more dynamic theming, you can manipulate CSS variables with JavaScript:
 
@@ -175,6 +212,8 @@ loadThemeFile('corporate-blue');
 
 ## Checklist 📋
 - [ ] Define base color palette as CSS variables
+- [ ] Install Tailwind CSS and Vite plugin
+- [ ] Configure Vite to use Tailwind plugin
 - [ ] Configure Tailwind to use CSS variables
 - [ ] Create theme variations (light/dark)
 - [ ] Test color contrast for accessibility
