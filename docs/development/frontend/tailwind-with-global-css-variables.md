@@ -145,40 +145,6 @@ Run your build process with Vite:
 npm run dev
 ```
 
-### 8. Implement Theme Switching
-
-For dark mode or theme switching, create separate theme CSS files that override the variables, and load them as needed:
-
-```css
-/* dark-theme.css */
-:root {
-  --color-text: #f3f4f6;
-  --color-background: #111827;
-  /* Adjust other colors as needed */
-}
-```
-
-You can then dynamically load this theme file at runtime:
-
-```javascript
-// Toggle theme function
-function toggleDarkMode() {
-  const darkThemeLink = document.getElementById('dark-theme');
-
-  if (darkThemeLink) {
-    // Remove dark theme if it exists
-    darkThemeLink.remove();
-  } else {
-    // Add dark theme if it doesn't exist
-    const link = document.createElement('link');
-    link.id = 'dark-theme';
-    link.rel = 'stylesheet';
-    link.href = '/dark-theme.css';
-    document.head.appendChild(link);
-  }
-}
-```
-
 ## Additional Approaches (Optional)
 
 For more dynamic theming, you can manipulate CSS variables with JavaScript:
