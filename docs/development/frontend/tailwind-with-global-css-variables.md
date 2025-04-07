@@ -126,9 +126,11 @@ Create a main CSS file that imports Tailwind and define your theme variables:
 
 This approach allows Tailwind to generate utility classes based on your theme variables, which in turn reference your global CSS variables.
 
+With Tailwind v4, the theme configuration is done directly in CSS using the `@theme` directive, there is no need for a separate `tailwind.config.js` file anymore.
+
 ### 6. Using Theme Variables in Your HTML
 
-With Tailwind v4, the theme configuration is done directly in CSS using the `@theme` directive. Now you can use these theme variables in your HTML:
+ Now you can use these theme variables in your HTML:
 
 ```html
 <div class="bg-primary text-white dark:bg-primary-dark">
