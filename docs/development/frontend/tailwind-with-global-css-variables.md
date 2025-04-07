@@ -118,9 +118,6 @@ Create a main CSS file that imports Tailwind and define your theme variables:
 
   /* Configure dark mode to use dark variables */
 }
-
-/* Configure dark mode variant to use class selector for manual toggling */
-@custom-variant dark (&:where(.dark, .dark *));
 ```
 
 This approach allows Tailwind to generate utility classes based on your theme variables, which in turn reference your global CSS variables.
@@ -153,45 +150,6 @@ npm run dev
 ```
 
 ## Additional Approaches (Optional)
-
-
-### Class-Based Dark Mode Toggle
-
-This is an example of implementing a simple dark mode toggle using class-based approach:
-
-```javascript
-// Simple dark mode toggle implementation
-function toggleDarkMode() {
-  // Toggle the dark class on the html element
-  document.documentElement.classList.toggle('dark');
-
-  // Save user preference to localStorage
-  const isDarkMode = document.documentElement.classList.contains('dark');
-  localStorage.setItem('darkMode', isDarkMode ? 'dark' : 'light');
-}
-
-// Initialize dark mode based on saved preference
-function initializeDarkMode() {
-  // Check for saved preference
-  const savedMode = localStorage.getItem('darkMode');
-
-  // Set initial state based on saved preference or system preference
-  if (savedMode === 'dark' || (!savedMode && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-    document.documentElement.classList.add('dark');
-  }
-}
-
-// Call the initialization function when the page loads
-document.addEventListener('DOMContentLoaded', initializeDarkMode);
-```
-
-You can then use this with a simple button in your HTML:
-
-```html
-<button onclick="toggleDarkMode()" class="px-4 py-2 bg-primary dark:bg-primary-dark text-white rounded">
-  Toggle Dark Mode
-</button>
-```
 
 ### Dynamic Color Switching
 For more dynamic theming, you can manipulate CSS variables with JavaScript:
