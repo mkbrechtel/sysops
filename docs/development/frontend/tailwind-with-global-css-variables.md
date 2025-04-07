@@ -90,8 +90,6 @@ export default defineConfig({
 })
 ```
 
-> **Note:** The actual Tailwind integration depends on the framework you're using. For example, Astro has its own [Astro Tailwind Plugin](https://github.com/withastro/astro/tree/main/packages/astro-tailwind-plugin), and other frameworks may have specific integration methods.
-
 ### 5. Create Tailwind CSS Main File
 
 Create a main CSS file that imports only Tailwind (without the variables):
