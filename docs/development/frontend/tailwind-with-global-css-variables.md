@@ -186,27 +186,21 @@ This approach allows all services to automatically receive theme updates when th
 - ❌ Creating too many color variations, making the system hard to maintain
 - ❌ Bypassing the pattern for "quick fixes" that lead to inconsistency
 - ❌ Neglecting to test color contrast in different themes
-- ❌ Forgetting to document the color system for other developers
 
 ## Best Practices 💡
-- Create a color palette documentation page showing all available colors
 - Limit the number of main colors to maintain design consistency
 - Use semantic color names in variables (primary, danger) rather than descriptive ones (blue, red)
-- Set up automated testing for color contrast accessibility
-- Consider design tokens as a more comprehensive approach for larger systems
 - Test themes across different browsers and devices
 
 ## Checklist 📋
 - [ ] Define base color palette as CSS variables in global.css
 - [ ] Load global.css directly in HTML, outside of the build process
-- [ ] Install Tailwind CSS and Vite plugin
-- [ ] Configure Vite to use Tailwind plugin
-- [ ] Configure Tailwind to use CSS variables
-- [ ] Create theme variations (light/dark) as separate CSS files
-- [ ] Test color contrast for accessibility
-- [ ] Document the color system
-- [ ] Create example components showcasing the theming system
-- [ ] Set up a theme toggle mechanism if needed
+- [ ] Install Tailwind CSS with the appropriate method for your project setup
+- [ ] Create tailwind CSS file with @import "tailwindcss" and @theme directive
+- [ ] Define theme variables that reference global CSS variables
+- [ ] Implement dark mode using `dark:`-variant utility classes
+- [ ] Document the color system and variable naming conventions
+- [ ] Test color contrast for accessibility in both light and dark modes
 - [ ] Test across different browsers and devices
 
 ## References 📚
