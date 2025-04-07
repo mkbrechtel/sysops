@@ -153,43 +153,33 @@ For dark mode or theme switching, add media query or class-based overrides:
 }
 ```
 
-### 8. Additional Approaches (Optional)
+## Additional Approaches (Optional)
 
 For more dynamic theming, you can manipulate CSS variables with JavaScript:
 
+### Dynamic Color Switching
 ```javascript
 // Example: Dynamically change theme at runtime
 document.documentElement.style.setProperty('--color-primary', '#8B5CF6');
 ```
 
-You can also load theme configurations from external sources:
+### Site-wide Theme Configuration
+For global sites with multiple services, you can centralize your theming by referencing CSS variables in your HTML. This ensures consistent branding across all your services without duplicating theme configurations on each service.
 
-```javascript
-// Load theme from external source
-async function loadUserTheme() {
-  const response = await fetch('/api/user-theme');
-  const theme = await response.json();
+```html
+<!-- Link to your central theme stylesheet in the head section -->
+<head>
+  <link rel="stylesheet" href="https://style.example.org/themes/corporate-blue.css">
+</head>
 
-  Object.entries(theme).forEach(([key, value]) => {
-    document.documentElement.style.setProperty(`--color-${key}`, value);
-  });
-}
+<!-- Using theme variables in HTML components -->
+<div class="bg-primary text-background p-4">
+  <h2 class="text-accent-light">Welcome to Our Platform</h2>
+  <p>This component uses our centralized theme colors.</p>
+</div>
 ```
 
-For global site configurations, you can load a separate CSS file based on site settings:
-
-```javascript
-// Load a specific theme CSS file
-function loadThemeFile(themeName) {
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = `/themes/${themeName}.css`;
-  document.head.appendChild(link);
-}
-
-// Example usage
-loadThemeFile('corporate-blue');
-```
+This approach allows all services to automatically receive theme updates when the central theme is updated, maintaining visual consistency across your ecosystem.
 
 ## Security Considerations 🔐
 - CSS variables are client-side, so don't store sensitive information in them
