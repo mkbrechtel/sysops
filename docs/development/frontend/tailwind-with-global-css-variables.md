@@ -191,11 +191,6 @@ function loadThemeFile(themeName) {
 loadThemeFile('corporate-blue');
 ```
 
-### 9. Example Implementation
-
-For a complete working example of this pattern, check out:
-- [hello-tailwind-with-global-variables](https://github.com/mkbrechtel/hello-tailwind-with-global-variables) - A repository demonstrating the implementation of Tailwind CSS with global CSS variables for theming
-
 ## Security Considerations 🔐
 - CSS variables are client-side, so don't store sensitive information in them
 - Ensure contrast ratios meet WCAG accessibility standards for all themes
@@ -227,5 +222,7 @@ For a complete working example of this pattern, check out:
 - [ ] Set up a theme toggle mechanism if needed
 - [ ] Test across different browsers and devices
 
-## Related Patterns 🔗
-- [Cuteness Pattern 🌸](../practice/cuteness.md) - For creating approachable UI experiences
+## References 📚
+
+For a complete working example of this pattern, check out:
+- [hello-tailwind-with-global-variables](https://github.com/mkbrechtel/hello-tailwind-with-global-variables) - A repository demonstrating the implementation of Tailwind CSS with global CSS variables for theming
