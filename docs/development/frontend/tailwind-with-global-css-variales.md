@@ -1,10 +1,8 @@
 ---
-title: Tailwind CSS with Global Variables Pattern
+title: Tailwind CSS with Global Variables Pattern 🎨
 # sidebar:
 #   hidden: true
 ---
-# Tailwind CSS with Global Variables Pattern 🎨
-
 ## Overview 📋
 The Tailwind CSS with Global Variables Pattern offers a maintainable approach to theme management by combining Tailwind's utility-first methodology with CSS custom properties (variables). This allows for consistent theming across applications while maintaining the flexibility to change colors without recompiling Tailwind.
 
