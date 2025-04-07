@@ -24,27 +24,27 @@ export default defineConfig({
       },
       sidebar: [
         { slug: 'index' },
-        // {
-        //   label: 'Development',
-        //   items: [
-        //     {
-        //       label: 'Design',
-        //       autogenerate: { directory: 'docs/development/design' },
-        //     },
-        //     {
-        //       label: 'Frontend',
-        //       autogenerate: { directory: 'docs/development/frontend' },
-        //     },
-        //     {
-        //       label: 'Backend',
-        //       autogenerate: { directory: 'docs/development/backend' },
-        //     },
-        //     {
-        //       label: 'Data',
-        //       autogenerate: { directory: 'docs/development/data' },
-        //     },
-        //   ]
-        // },
+        {
+          label: 'Development',
+          items: [
+            // {
+            //   label: 'Design',
+            //   autogenerate: { directory: 'docs/development/design' },
+            // },
+            {
+              label: 'Frontend',
+              autogenerate: { directory: 'docs/development/frontend' },
+            },
+            // {
+            //   label: 'Backend',
+            //   autogenerate: { directory: 'docs/development/backend' },
+            // },
+            // {
+            //   label: 'Data',
+            //   autogenerate: { directory: 'docs/development/data' },
+            // },
+          ]
+        },
         {
           label: 'Operation',
           items: [
