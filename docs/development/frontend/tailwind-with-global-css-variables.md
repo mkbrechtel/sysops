@@ -133,14 +133,6 @@ With Tailwind v4, the theme configuration is done directly in CSS using the `@th
 </div>
 ```
 
-You can toggle dark mode by adding the `dark` class to an ancestor element, typically the html or body tag:
-
-```html
-<html class="dark">
-  <!-- This will activate dark mode for the entire page -->
-</html>
-```
-
 ### 7. Start Your Build Process
 
 Run your build process with Vite:
