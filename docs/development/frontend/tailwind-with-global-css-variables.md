@@ -156,6 +156,44 @@ npm run dev
 ## Additional Approaches (Optional)
 
 
+### Class-Based Dark Mode Toggle
+
+This is an example of implementing a simple dark mode toggle using class-based approach:
+
+```javascript
+// Simple dark mode toggle implementation
+function toggleDarkMode() {
+  // Toggle the dark class on the html element
+  document.documentElement.classList.toggle('dark');
+
+  // Save user preference to localStorage
+  const isDarkMode = document.documentElement.classList.contains('dark');
+  localStorage.setItem('darkMode', isDarkMode ? 'dark' : 'light');
+}
+
+// Initialize dark mode based on saved preference
+function initializeDarkMode() {
+  // Check for saved preference
+  const savedMode = localStorage.getItem('darkMode');
+
+  // Set initial state based on saved preference or system preference
+  if (savedMode === 'dark' || (!savedMode && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.classList.add('dark');
+  }
+}
+
+// Call the initialization function when the page loads
+document.addEventListener('DOMContentLoaded', initializeDarkMode);
+```
+
+You can then use this with a simple button in your HTML:
+
+```html
+<button onclick="toggleDarkMode()" class="px-4 py-2 bg-primary dark:bg-primary-dark text-white rounded">
+  Toggle Dark Mode
+</button>
+```
+
 ### Dynamic Color Switching
 For more dynamic theming, you can manipulate CSS variables with JavaScript:
 
@@ -218,3 +256,11 @@ This approach allows all services to automatically receive theme updates when th
 
 For a complete working example of this pattern, check out:
 - [hello-tailwind-with-global-variables](https://github.com/mkbrechtel/hello-tailwind-with-global-variables) - A repository demonstrating the implementation of Tailwind CSS with global CSS variables for theming
+
+Tailwind CSS Documentation:
+- [Tailwind CSS Theme Variables](https://tailwindcss.com/docs/theme) - Learn about theming in Tailwind v4
+- [Dark Mode in Tailwind CSS](https://tailwindcss.com/docs/dark-mode) - Implementation of dark mode using the dark variant
+- [Vite Plugin Installation](https://tailwindcss.com/docs/installation/using-vite) - Official guide on installing Tailwind CSS with Vite, also has links to other variants
+
+Astro Tailwind CSS Integration:
+- [Astro Tailwind CSS](https://astro.build/integrations/tailwindcss) - Official Astro integration for Tailwind CSS
