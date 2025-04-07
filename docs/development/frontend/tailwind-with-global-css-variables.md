@@ -115,8 +115,12 @@ Create a main CSS file that imports Tailwind and define your theme variables:
 
   --color-accent: var(--global-color-accent);
   --color-accent-dark: var(--global-color-accent-dark);
+  
+  /* Font configurations */
+  --font-sans: var(--global-font-sans);
+  --font-serif: var(--global-font-serif); 
+  --font-mono: var(--global-font-mono);
 
-  /* Configure dark mode to use dark variables */
 }
 ```
 
@@ -140,6 +144,8 @@ Run your build process with Vite:
 ```bash
 npm run dev
 ```
+
+Go to your browser and visit `http://localhost:3000` to see your application running.
 
 ## Additional Approaches (Optional)
 
