@@ -5,6 +5,6 @@
     path: "{{ users[item].home | default('/home/'+item) }}"
     owner: "{{ item }}"
     group: "{{ item }}"
-    mode: "{{ users[item].homedir_mode | default(700) }}"
+    mode: "{{ users[item].homedir_mode | default('u=rwx,g=rx,o=') }}"
     state: directory
   loop: "{{ users.keys() | list }}"
