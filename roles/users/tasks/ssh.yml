@@ -13,7 +13,7 @@
     path: "{{ users[item].home | default('/home/'+item) }}/.ssh"
     owner: "{{ item }}"
     group: "{{ item }}"
-    mode: "700"
+    mode: "0700"
     state: directory
   loop: "{{ users.keys() | list }}"
 
