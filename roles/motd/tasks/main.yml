@@ -1,0 +1,9 @@
+---
+- name: Set MOTD
+  copy:
+    content: "{{ motd }}"
+    dest: /etc/motd
+    owner: root
+    group: root
+    mode: '0644'
+  when: motd is defined
