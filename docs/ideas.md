@@ -19,6 +19,11 @@ sidebar:
 - Gitflow
 - Documentation Pattern 📚 
 - Knowledge Sharing Pattern 🤝
+- Static Websites (SSG)
+- Astro & Tailwind
+- Starlight Docs sites
+- gettext and weblate for translations
+- FIDO SSH Keys
 
 ## Common Pattern structure
 

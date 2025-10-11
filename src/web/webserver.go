@@ -3,7 +3,7 @@ package web
 import (
     "fmt"
     "net/http"
-    "patterns.mkbrechtel.dev/docs"
+    "patterns.how/docs"
 )
 
 func Webserver() {

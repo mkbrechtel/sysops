@@ -4,7 +4,7 @@ import starlight from "@astrojs/starlight";
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://patterns.mkbrechtel.dev",
+  site: "https://patterns.how",
   trailingSlash: "never",
   build: {
     format: "preserve",
