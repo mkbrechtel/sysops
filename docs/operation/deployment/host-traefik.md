@@ -6,7 +6,7 @@ Host-based Traefik pattern provides centralized HTTPS termination and routing fo
 ## Key Components
 
 - Shared Docker proxy network for service connectivity
-- File-based configuration in /srv/traefik/conf.d/
+- File-based configuration in /etc/traefik/conf.d/
 - Per-service configuration files
 - Automatic Let's Encrypt certificate management
 - HTTP to HTTPS redirection
@@ -14,7 +14,7 @@ Host-based Traefik pattern provides centralized HTTPS termination and routing fo
 ## Directory Structure
 
 ```bash
-/srv/traefik/
+/etc/traefik/
 ├── docker-compose.yaml    # Traefik compose configuration
 ├── traefik.yaml           # Main Traefik configuration
 └──  conf.d/                # Service configurations
@@ -35,7 +35,7 @@ networks:
     external: true
 ```
 
-3. Configure routing in `/srv/traefik/conf.d/{hostname}.yaml`:
+3. Configure routing in `/etc/traefik/conf.d/{hostname}.yaml`:
 ```yaml
 http:
   routers:
