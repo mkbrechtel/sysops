@@ -29,7 +29,7 @@ None.
 - hosts: servers
   become: yes
   roles:
-    - mkbrechtel.sys.common
+    - mkbrechtel.sysops.common
 ```
 
 ## Features

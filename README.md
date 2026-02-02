@@ -32,9 +32,9 @@ ansible-galaxy collection install mkbrechtel.sysops
 - hosts: servers
   become: yes
   roles:
-    - mkbrechtel.sys.common
-    - mkbrechtel.sys.users
-    - mkbrechtel.sys.podman
+    - mkbrechtel.sysops.common
+    - mkbrechtel.sysops.users
+    - mkbrechtel.sysops.podman
 ```
 
 ### User Management
@@ -43,7 +43,7 @@ ansible-galaxy collection install mkbrechtel.sysops
 - hosts: servers
   become: yes
   roles:
-    - role: mkbrechtel.sys.users
+    - role: mkbrechtel.sysops.users
       vars:
         users:
           - name: alice

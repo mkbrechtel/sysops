@@ -22,7 +22,7 @@ None.
 - hosts: servers
   become: yes
   roles:
-    - mkbrechtel.sys.podman
+    - mkbrechtel.sysops.podman
 ```
 
 ## What Gets Installed
