@@ -1,3 +1,4 @@
 @README.md
 @CODING.md
 @RELEASE.md
+@GLOBAL.md

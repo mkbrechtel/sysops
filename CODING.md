@@ -1,21 +1,15 @@
-## Ansible Project Structure
+# Coding Guidelines
 
-### Global Variables
+## Global Variables
 
-This collection uses global variables that can be shared across all roles:
+This collection uses global variables that can be shared across all roles, see the documnetation on [global variables](./GLOBAL.md).
 
-- `domain_name`: The primary domain name used for system configuration (optional)
-
-### File Organization
-
-Files can be placed in `./files/` at the collection root instead of in individual role directories. Ansible's search path includes the collection's files directory, so roles can reference these files directly without duplication.
-
-### Feature Flags Pattern
+## Feature Flags Pattern
 
 This collection uses a "_with_" naming convention for optional feature flags in roles. These boolean variables enable or disable specific functionality within a role:
 
 - Feature flags follow the pattern: `<role_name>_with_<feature>`
-- Examples: `common_with_docker`, `users_with_sudo`
+- Examples: `users_with_sudo`, `traefik_with_acme`
 - This pattern allows roles to have a core functionality with optional extensions
 - Feature flags should default to `false` to maintain backward compatibility
 

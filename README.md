@@ -1,20 +1,20 @@
-# sys Ansible Collection
+# sysops Ansible Collection
 
-**sys** provides base system configuration and management roles for Debian/Ubuntu systems. This collection focuses on common system administration tasks, user management, and container runtime setup.
+The **sysops** collection provides base system configuration and management roles for Debian systems. This collection focuses on common system administration tasks, user management, and container runtime setup.
 
-> **⚠️ Development Phase Notice**  
-> This collection is currently in development (version 0.x.x). Breaking changes may occur in any release until we reach version 1.0.0. APIs, role interfaces, and variable names are subject to change.
+**⚠️ Development Phase Notice** 
+*This collection is currently in development (version 0.x.x). Breaking changes may occur in any release until we reach version 1.0.0. APIs, role interfaces, and variable names are subject to change.*
 
 ## Installation
 
 ```bash
-ansible-galaxy collection install mkbrechtel.sys
+ansible-galaxy collection install mkbrechtel.sysops
 ```
 
 ## Requirements
 
 - Ansible >= 2.14.3
-- Debian (bookworm, bullseye) or Ubuntu (jammy, focal)
+- Debian 12/bookworm or 13/trixie
 
 ## Included Roles
 
@@ -23,12 +23,6 @@ ansible-galaxy collection install mkbrechtel.sys
 - **updates**: System updates management
 - **users**: User account management with home directory configuration
 - **podman**: Podman container runtime with DNS support
-
-## Global Variables
-
-This collection uses global variables that are shared across roles where applicable:
-
-- `domain_name`: The primary domain name used for system configuration (optional)
 
 ## Usage
 
