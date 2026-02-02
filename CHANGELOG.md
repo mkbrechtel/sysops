@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-02-02
+
+### Changed
+- Renamed collection from `mkbrechtel.sys` to `mkbrechtel.sysops`
+
+### Added
+- New `motd` role for message of the day configuration
+
+### Fixed
+- Fixed user SSH key configuration
+- Fixed home directory mode permissions
+
 ## [0.0.3] - 2025-07-26
 
 ### Fixed
@@ -42,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **updates** role for system update management
   - **users** role for user account management with home directory configuration
 
-[0.0.3]: https://github.com/mkbrechtel/sys/compare/v0.0.2...v0.0.3
-[0.0.2]: https://github.com/mkbrechtel/sys/compare/v0.0.1...v0.0.2
-[0.0.1]: https://github.com/mkbrechtel/sys/releases/tag/v0.0.1
+[0.1.0]: https://github.com/mkbrechtel/sysops/compare/v0.0.3...v0.1.0
+[0.0.3]: https://github.com/mkbrechtel/sysops/compare/v0.0.2...v0.0.3
+[0.0.2]: https://github.com/mkbrechtel/sysops/compare/v0.0.1...v0.0.2
+[0.0.1]: https://github.com/mkbrechtel/sysops/releases/tag/v0.0.1
