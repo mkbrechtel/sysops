@@ -10,12 +10,12 @@
 
 - name: Template init script for the {{ deploy_instance_id }} deploy instance
   template:
-    src: 01-test-fail.init.j2
-    dest: "{{ deploy_instance_path }}/01-test-fail.init"
+    src: 01-test-fail-init.j2
+    dest: "{{ deploy_instance_path }}/01-test-fail-init"
     mode: '0755'
 
 - name: Template deploy script for the {{ deploy_instance_id }} deploy instance
   template:
-    src: 01-test-fail.j2
-    dest: "{{ deploy_instance_path }}/01-test-fail"
+    src: 02-test-fail.j2
+    dest: "{{ deploy_instance_path }}/02-test-fail"
     mode: '0755'
