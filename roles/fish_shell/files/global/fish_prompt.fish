@@ -6,5 +6,5 @@
 
 function fish_prompt
     set duration (math -s6 "$CMD_DURATION / 1000")
-    /usr/bin/powerline-go -error $status -jobs (count (jobs -p)) -duration $duration -shell bare -hostname-only-if-ssh
+    /usr/bin/powerline-go -error $status -jobs (count (jobs -p)) -duration $duration -shell bare
 end

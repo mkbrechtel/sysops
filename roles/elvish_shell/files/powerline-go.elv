@@ -4,4 +4,4 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-set edit:rprompt = { /usr/bin/powerline-go -shell bare -mode flat -hostname-only-if-ssh }
+set edit:rprompt = { /usr/bin/powerline-go -shell bare -mode flat }

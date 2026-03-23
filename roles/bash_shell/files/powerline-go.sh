@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 function _update_ps1() {
-    PS1="$(/usr/bin/powerline-go -error $? -jobs $(jobs -p | wc -l) -shell bash -hostname-only-if-ssh)"
+    PS1="$(/usr/bin/powerline-go -error $? -jobs $(jobs -p | wc -l) -shell bash)"
 }
 
 if [ "$TERM" != "linux" ] && [ -f "/usr/bin/powerline-go" ]; then

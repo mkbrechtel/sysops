@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 function powerline_precmd() {
-    PS1="$(/usr/bin/powerline-go -error $? -jobs ${${(%):%j}:-0} -shell zsh -hostname-only-if-ssh)"
+    PS1="$(/usr/bin/powerline-go -error $? -jobs ${${(%):%j}:-0} -shell zsh)"
 }
 
 function install_powerline_precmd() {
