@@ -26,7 +26,6 @@ dependencies:
   - role: debian_apt_sources
   - role: tools
   - role: root_user
-  - role: ssh_agent
   - role: locales
   - role: timezone
   - role: keyboard
