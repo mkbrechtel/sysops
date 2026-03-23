@@ -16,7 +16,7 @@ Configure the system Message of the Day (MOTD).
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `motd` | No | - | The message of the day content. If not defined, the role does nothing. |
+| `motd` | No | See below | The message of the day content. Defaults to a message stating the system is managed by the mkbrechtel.sysops collection. |
 
 ## Example Playbook
 

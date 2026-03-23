@@ -19,6 +19,22 @@ This collection uses a "_with_" naming convention for optional feature flags in 
 - This pattern allows roles to have a core functionality with optional extensions
 - Feature flags should default to `false` to maintain backward compatibility
 
+## Managed File Header
+
+All templates that generate configuration files on target systems must include a managed file header comment. Do **not** use `{{ ansible_managed | comment }}` — use a fixed string instead.
+
+The header format is:
+
+```
+# This file is managed by the mkbrechtel.sysops.<role_name> Ansible role!
+# MANUAL CHANGES WILL BE OVERWRITTEN WITHOUT WARNING!
+```
+
+- Replace `<role_name>` with the actual role name (e.g. `restic_client`, `deploy_ansible_play`)
+- Use the appropriate comment syntax for the file format (`#` for shell/ini/systemd, `//` for JSON, `<!-- -->` for XML/HTML, etc.)
+- Place the header after the SPDX license block, before the file content
+- Do not use `{{ ansible_managed | comment }}` — it is deprecated and produces inconsistent output depending on the local `ansible.cfg` setting
+
 ## Role Development Guidelines
 
 ### Directory Structure
