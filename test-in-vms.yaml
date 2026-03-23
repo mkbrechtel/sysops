@@ -48,3 +48,11 @@
   hosts: vms
   roles:
     - common
+
+- name: Test deploy roles
+  hosts: deploy_deploy
+  become: true
+  roles:
+    - deploy_deploy
+    - deploy_test_ohai
+    - deploy_test_fail

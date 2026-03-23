@@ -7,8 +7,8 @@ Description=Deploy %i!
 
 [Service]
 WorkingDirectory=%h/.config/deploy/%i
-ExecStartPre=%h/.config/deploy/%i/deploy.init
-ExecStart=/etc/deploy/run.sh %i
+ExecStartPre=/usr/bin/run-parts --regex '\\.init$' %h/.config/deploy/%i
+ExecStart=/usr/bin/run-parts %h/.config/deploy/%i
 ExecStopPost=/etc/deploy/notify.sh "%H" "%i" "${EXIT_STATUS}" "/run/deploy/%i.out"
 EnvironmentFile=%h/.config/deploy/%i/deploy.env
 
