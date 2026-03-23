@@ -33,4 +33,3 @@ dependencies:
   - role: bash_shell
   - role: fish_shell
   - role: zsh_shell
-  - role: elvish_shell

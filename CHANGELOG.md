@@ -30,8 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - New `bash_shell` role for Bash shell configuration
-- New `elvish_shell` role for Elvish shell configuration
 - New `zsh_shell` role for Zsh shell configuration
+
+### Removed
+- Removed `elvish_shell` role (no global config option available)
 
 ### Changed
 - Renamed `fish` role to `fish_shell`

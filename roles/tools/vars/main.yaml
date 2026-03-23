@@ -13,7 +13,6 @@ tools_packages:
   # shells
   - zsh
   - fish
-  - elvish
   - sash
 
   # shell prompt

@@ -40,7 +40,6 @@ ansible-galaxy collection install mkbrechtel.sysops
 - **sysctl_tweaks**: System sysctl performance tweaks
 - **microcode**: CPU microcode updates
 - **bash_shell**: Bash shell configuration
-- **elvish_shell**: Elvish shell configuration
 - **fish_shell**: Fish shell installation and configuration
 - **zsh_shell**: Zsh shell configuration
 - **updates**: System updates management
