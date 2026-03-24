@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-24
+
 ### Added
 - Merged checker collection into sysops
   - Checker framework: systemd-based monitoring with Nagios plugins
@@ -27,21 +29,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Git hook and webhook trigger roles: triggered_by_git_hook, webhook_server
   - Email notification support for deployment status
   - Test roles: test_ohai, test_fail
-
-### Added
+- Merged rps-backup into sysops (restic_client, restic_server roles)
 - New `bash_shell` role for Bash shell configuration
 - New `zsh_shell` role for Zsh shell configuration
+- New `network_diagnostics` role for network diagnostic tools
+- New independent roles split from `common`: `hostname`, `locales`, `timezone`, `keyboard`, `sysctl_tweaks`, `microcode`, `root_user`, `ssh_agent`
+- New `tools`, `storage`, and `firmware` roles (replacing `debian_packages`)
+- Powerline-go prompt integration in shell roles
+- Hostname assertion and configurable hostname variable
+- Per-file SPDX license headers
+- Managed file headers in all templates (replacing `ansible_managed`)
+- Incus-based test system
+
+### Changed
+- Relicensed from Apache-2.0 to AGPL-3.0-or-later
+- Split `common` role into 12 independent roles with meta dependencies
+- Renamed `fish` role to `fish_shell`
+- Renamed `debian_sources` role to `debian_apt_sources`
+- Renamed `network` role to `resolvconf` and removed it from `common` dependencies
+- Replaced `debian_packages` role with `tools`, `storage`, and `firmware` roles
+- Changed default root user shell to bash
+- Removed `ssh_agent` from `common` role dependencies
+- Changed `updates` role to use meta dependency on `debian_apt_sources` instead of import_role
+- Deploy system switched to run-parts for modular script execution
+- Reorganized checker file structure: moved files from global `files/` directory to their appropriate roles
 
 ### Removed
 - Removed `elvish_shell` role (no global config option available)
-
-### Changed
-- Renamed `fish` role to `fish_shell`
-- Renamed `debian_sources` role to `debian_apt_sources`
 - Removed obsolete `debian_repos` role (refactored into `debian_apt_sources`)
-- Changed `updates` role to use meta dependency on `debian_apt_sources` instead of import_role
-- Renamed `network` role to `resolvconf` and removed it from `common` dependencies
-- Reorganized checker file structure: moved files from global `files/` directory to their appropriate roles
 
 ## [0.1.1] - 2026-02-02
 
@@ -95,6 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **updates** role for system update management
   - **users** role for user account management with home directory configuration
 
+[0.2.0]: https://github.com/mkbrechtel/sysops/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/mkbrechtel/sysops/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mkbrechtel/sysops/compare/v0.0.3...v0.1.0
 [0.0.3]: https://github.com/mkbrechtel/sysops/compare/v0.0.2...v0.0.3
