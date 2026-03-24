@@ -72,6 +72,27 @@ roles/
 - Provide meaningful error messages
 - Use `block`/`rescue` for complex error handling scenarios
 
+## Validation
+
+Before submitting changes, run the following checks in order:
+
+1. **Linting** — run `ansible-lint` to check for formatting and best practice issues:
+   ```bash
+   ansible-lint
+   ```
+
+2. **License compliance** — run `reuse lint` to verify that all files have correct SPDX licensing headers:
+   ```bash
+   reuse lint
+   ```
+
+3. **Integration testing** — run the VM test playbook to verify everything works end-to-end:
+   ```bash
+   ./test-in-vms.yaml
+   ```
+
+All three checks must pass before changes are considered ready.
+
 ## Testing
 
 - Test roles on all supported platforms (Debian bookworm/bullseye, Ubuntu jammy/focal)
