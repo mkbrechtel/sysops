@@ -25,4 +25,6 @@
   ansible.builtin.lineinfile:
     dest: "{{ root_target_directory | default('') }}/etc/hosts"
     regexp: "^::1"
-    line: "::1 localhost ip6-localhost ip6-loopback {{ hostname_name }}{% if '.' in hostname_name %} {{ hostname_name | regex_replace('\\..*$', '') }}{% endif %}"
+    line: >-
+      ::1 localhost ip6-localhost ip6-loopback {{ hostname_name }}{% if '.' in hostname_name %}
+      {{ hostname_name | regex_replace('\\..*$', '') }}{% endif %}
