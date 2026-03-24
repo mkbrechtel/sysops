@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-03-24
+
+### Fixed
+- Fix license on powerline-go integration files to GPL-3.0-only
+- Add missing README.md and meta files for all roles
+- Fix all ansible-lint violations (473 total)
+
+### Changed
+- Run CI workflows in Debian trixie container with apt packages
+- Upgrade actions/checkout from v4 to v6 for Node.js 24 support
+
 ## [0.2.0] - 2026-03-24
 
 ### Added
