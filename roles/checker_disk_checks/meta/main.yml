@@ -5,7 +5,7 @@
 ---
 galaxy_info:
   author: mkbrechtel
-  description: Disk space monitoring using Nagios check_disk plugin
+  description: Auto-discovers mountpoints and creates disk checks for each
   company: mkbrechtel
   license: AGPL-3.0-or-later
   min_ansible_version: "2.14"

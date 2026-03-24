@@ -5,7 +5,7 @@
 ---
 galaxy_info:
   author: mkbrechtel
-  description: Disk space monitoring using Nagios check_disk plugin
+  description: Configures restic backup client with per-backup configurations and systemd timers
   company: mkbrechtel
   license: AGPL-3.0-or-later
   min_ansible_version: "2.14"
@@ -14,8 +14,7 @@ galaxy_info:
       versions:
         - trixie
   galaxy_tags:
-    - monitoring
-    - disk
-    - storage
+    - backup
+    - restic
 
 dependencies: []

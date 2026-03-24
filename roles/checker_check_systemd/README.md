@@ -4,9 +4,9 @@ SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.br
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-# checker_check_disk
+# checker_check_systemd
 
-Disk space monitoring using Nagios check_disk plugin.
+Systemd unit health monitoring using Nagios check_systemd plugin.
 
 ## Requirements
 
@@ -15,12 +15,6 @@ Disk space monitoring using Nagios check_disk plugin.
 ## Role Variables
 
 See `defaults/main.yaml` for all available variables and their default values.
-
-Key variables:
-
-- `checker_check_disk_warning` (default: `'20%'`) - Warning threshold
-- `checker_check_disk_critical` (default: `'10%'`) - Critical threshold
-- `checker_check_disk_paths` (default: `[]`) - List of paths to monitor
 
 ## Dependencies
 
@@ -32,9 +26,5 @@ Key variables:
 - hosts: servers
   become: yes
   roles:
-    - role: mkbrechtel.sysops.checker_check_disk
-      vars:
-        checker_check_disk_paths:
-          - /
-          - /home
+    - mkbrechtel.sysops.checker_check_systemd
 ```

@@ -5,7 +5,7 @@
 ---
 galaxy_info:
   author: mkbrechtel
-  description: Disk space monitoring using Nagios check_disk plugin
+  description: Alerta alerting integration for sending check results
   company: mkbrechtel
   license: AGPL-3.0-or-later
   min_ansible_version: "2.14"
@@ -15,7 +15,7 @@ galaxy_info:
         - trixie
   galaxy_tags:
     - monitoring
-    - disk
-    - storage
+    - notification
+    - alerta
 
 dependencies: []
