@@ -8,7 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 ## Overview
 
-The checker monitoring system uses a layered configuration approach:
+The setup_check monitoring system uses a layered configuration approach:
 
 1. **Ansible Variables** - Set during deployment
 2. **Environment Files** - Runtime configuration
@@ -49,8 +49,8 @@ check_disk_path: "/var"           # Mount point to monitor
 #### Memory Monitoring
 
 ```yaml
-check_memory_warning_threshold: 80   # Percentage
-check_memory_critical_threshold: 90  # Percentage
+check_ram_warning_threshold: 80   # Percentage
+check_ram_critical_threshold: 90  # Percentage
 ```
 
 #### Ping Monitoring

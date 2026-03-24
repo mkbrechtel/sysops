@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.br
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-# checker
+# setup_check
 
 A comprehensive monitoring and alerting system that combines local checks with centralized monitoring infrastructure, deployed via Ansible.
 
@@ -90,19 +90,19 @@ All components are designed to work together, with local checks sending alerts t
 ### Local Monitoring Roles
 
 #### Core
-- `checker` - Base infrastructure and scripts
+- `setup_check` - Base infrastructure and scripts
 - `check` - Generic role for deploying checks
 
 #### Checks
 - `check_systemd` - Monitor failed systemd units
 - `check_disk` - Disk space monitoring
-- `check_memory` - Memory usage monitoring
+- `check_ram` - Memory usage monitoring
 - `check_ping` - Network connectivity checks
 
 #### Meta Roles
-- `system_checks` - Groups system-related checks
-- `disk_checks` - Automatically monitors all mount points
-- `network_checks` - Network monitoring checks
+- `managed` (with `managed_with_system_checks`) - Groups system-related checks
+- `managed` (with `managed_with_disk_checks`) - Automatically monitors all mount points
+- `managed` (with `managed_with_network_checks`) - Network monitoring checks
 
 #### Notifiers
 - `notify_email` - Email notifications via sendmail

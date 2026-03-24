@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+# Generic check role. Import it like this in your check:
+# - name: Import deploy instance role
+#   ansible.builtin.import_role:
+#     role: check
+
+- name: "Directory for {{ check_id }}"
+  ansible.builtin.file:
+    path: "/etc/checker/checks/{{ check_id }}"
+    state: directory
+    mode: u=rwX,g=rX,o=rX
+
+- name: "Script for {{ check_id }}"
+  ansible.builtin.template:
+    src: check.sh.j2
+    dest: "/etc/checker/checks/{{ check_id }}/check.sh"
+    mode: u=rwx,g=rx,o=rx
+
+- name: "Environment for {{ check_id }}"
+  ansible.builtin.copy:
+    content: |
+      # Resource limits (used by systemd service)
+      CHECK_TIMEOUT={{ check_timeout | default(60) }}
+      CHECK_MEMORY_MAX={{ check_memory_max | default('100M') }}
+      CHECK_CPU_QUOTA={{ check_cpu_quota | default('20%') }}
+
+      # Process limits
+      CHECK_LIMIT_NOFILE={{ check_limit_nofile | default(1024) }}
+      CHECK_LIMIT_NPROC={{ check_limit_nproc | default(32) }}
+    dest: "/etc/checker/checks/{{ check_id }}/check.env"
+    mode: u=rwX,g=rX,o=rX

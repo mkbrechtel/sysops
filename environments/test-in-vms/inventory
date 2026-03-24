@@ -5,8 +5,8 @@
 [vms]
 sysops-test-common
 
-[deploy_deploy]
+[setup_deploy]
 sysops-test-common
 
 [vms:children]
-deploy_deploy
+setup_deploy

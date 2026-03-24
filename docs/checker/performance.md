@@ -8,7 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 ## Overview
 
-The checker monitoring system is designed to be lightweight and efficient. This guide covers optimization techniques for different deployment scenarios.
+The setup_check monitoring system is designed to be lightweight and efficient. This guide covers optimization techniques for different deployment scenarios.
 
 ## Resource Limits
 

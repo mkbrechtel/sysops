@@ -50,9 +50,9 @@
     - common
 
 - name: Test deploy roles
-  hosts: deploy_deploy
+  hosts: setup_deploy
   become: true
   roles:
-    - deploy_deploy
-    - deploy_test_ohai
-    - deploy_test_fail
+    - setup_deploy
+    - test_deploy_ohai
+    - test_deploy_fail

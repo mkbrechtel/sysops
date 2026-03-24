@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+- name: Create deploy directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/deploy
+    - /etc/deploy/notifiers
+    - /var/lib/deploy
+    - /var/lib/deploy/notify_email
+
+- name: Copy notification scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/deploy/{{ item | basename }}"
+    mode: "0755"
+  loop:
+    - notify.sh
+    - notify-email.sh
+
+- name: Copy deploy.py script
+  ansible.builtin.copy:
+    src: deploy.py
+    dest: /usr/local/bin/deploy
+    mode: "0755"
+
+- name: Template email notification configuration
+  ansible.builtin.template:
+    src: notify_email.env.j2
+    dest: /etc/deploy/notify_email.env
+    mode: "0644"
+  when:
+    - setup_deploy_notify_email_to != ""
+
+- name: Make email notifier executable
+  ansible.builtin.file:
+    path: /etc/deploy/notifiers/notify-email.sh
+    src: /etc/deploy/notify-email.sh
+    state: link
+  when:
+    - setup_deploy_notify_email_to != ""

@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.br
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-# ansible_play
+# deploy_ansible_play
 
 Role for direct Ansible playbook execution deployment strategy.
 

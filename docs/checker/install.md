@@ -17,8 +17,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 ```bash
 # Clone the repository
-git clone <repository-url> /opt/checker
-cd /opt/checker
+git clone <repository-url> /opt/setup_check
+cd /opt/setup_check
 
 # Install system dependencies
 apt-get update
@@ -61,7 +61,7 @@ apt-get install -y python3-venv python3-dev gcc postgresql nginx
 Edit `local.yaml` to match your environment:
 
 ```yaml
-- name: Deploy checker monitoring
+- name: Deploy setup_check monitoring
   hosts: localhost
   vars:
     # Your email address for notifications
@@ -163,8 +163,8 @@ RUN apt-get update && apt-get install -y \
     mailutils \
     postfix
 
-COPY . /opt/checker
-WORKDIR /opt/checker
+COPY . /opt/setup_check
+WORKDIR /opt/setup_check
 
 RUN ansible-playbook local.yaml
 

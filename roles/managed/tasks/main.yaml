@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+# System checks (systemd + RAM)
+- name: Include system checks
+  when: managed_with_system_checks
+  block:
+    - name: Include systemd check
+      ansible.builtin.include_role:
+        name: check_systemd
+    - name: Include RAM check
+      ansible.builtin.include_role:
+        name: check_ram
+
+# Disk checks (dynamic loop over discovered mounts)
+- name: Mount points with checks to be created
+  ansible.builtin.debug:
+    msg: "{{ managed_disk_checks_mounts }}"
+  when: managed_with_disk_checks
+
+- name: Create disk check for each mount
+  ansible.builtin.include_role:
+    name: check_disk
+  vars:
+    check_disk_id: >-
+      {{
+        'root-disk' if item == '/' else
+        'disk-' ~ (item | trim('/') | regex_replace('/', '-'))
+      }}
+    check_disk_paths:
+      - "{{ item }}"
+  loop: "{{ managed_disk_checks_mounts }}"
+  when: managed_with_disk_checks
+
+# Network checks
+- name: Include network checks # noqa: var-naming[no-role-prefix]
+  ansible.builtin.include_role:
+    name: check_ping
+  vars:
+    check_id: ping-google
+    check_ping_hostname: google.de
+  when: managed_with_network_checks
+
+# Updates
+- name: Include updates role
+  ansible.builtin.include_role:
+    name: updates
+  when: managed_with_updates
+
+# Email notification
+- name: Include email notification
+  ansible.builtin.include_role:
+    name: notify_email
+  when: managed_with_notify_email

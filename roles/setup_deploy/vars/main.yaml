@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+
+setup_deploy_systemd_units_unit_path: "{{ setup_deploy_scope_map_unit_path[setup_deploy_systemd_units_scope] }}"
+setup_deploy_scope_map_unit_path:
+  system: /etc/systemd/system/
+  user: ~/.config/systemd/user/
+
+setup_deploy_systemd_units_instance_path: "{{ setup_deploy_scope_map_deploy_instance_path_default[setup_deploy_systemd_units_scope] }}"
+setup_deploy_scope_map_deploy_instance_path_default:
+  system: /etc/deploy/%i
+  user: "%h/.config/deploy/%i"

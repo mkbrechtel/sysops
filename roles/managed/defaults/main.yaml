@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+
+# Feature flags
+managed_with_disk_checks: false
+managed_with_network_checks: false
+managed_with_system_checks: false
+managed_with_updates: false
+managed_with_notify_email: false
+
+# Disk checks configuration
+managed_disk_checks_excluded_filesystems:
+  - tmpfs
+  - devtmpfs
+  - proc
+  - sysfs
+  - cgroup
+  - devpts
+  - securityfs
+  - pstore
+  - autofs
+  - mqueue
+  - debugfs
+  - hugetlbfs
+  - fusectl
+  - nfs
+  - nfs4
+  - overlay
+
+managed_disk_checks_excluded_mounts: []
+managed_disk_checks_minimum_size_mb: 128
+
+managed_disk_checks_mounts: >-
+  {{
+    ansible_facts.mounts
+    | rejectattr('fstype', 'in', managed_disk_checks_excluded_filesystems)
+    | selectattr('size_total', '>', (managed_disk_checks_minimum_size_mb * 1024 * 1024))
+    | map(attribute='mount')
+    | reject('in', managed_disk_checks_excluded_mounts)
+    | list
+  }}

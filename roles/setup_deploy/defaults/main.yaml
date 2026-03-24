@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+
+# Notification settings
+setup_deploy_notify_email_to: ""
+setup_deploy_notify_email_from: "deploy@{{ ansible_hostname }}"
+setup_deploy_notify_email_on_success: false
+setup_deploy_notify_email_on_failure: true
+setup_deploy_notify_email_max_output_lines: 100
+setup_deploy_notify_email_rate_limit: 10

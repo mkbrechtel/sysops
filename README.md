@@ -45,6 +45,23 @@ ansible-galaxy collection install mkbrechtel.sysops
 - **updates**: System updates management
 - **users**: User account management with home directory configuration
 - **podman**: Podman container runtime with DNS support
+- **managed**: High-level orchestrator for a fully managed system
+- **setup_check**: Checker monitoring framework setup
+- **setup_deploy**: Deployment infrastructure setup
+- **setup_notify**: Unified notification setup
+- **check**: Base check instance role
+- **check_disk**: Disk space check
+- **check_ram**: RAM/memory check
+- **check_ping**: Network connectivity check
+- **check_systemd**: Systemd service health check
+- **notify_alerta**: Alerta notification integration
+- **notify_email**: Email notification integration
+- **deploy**: Base deploy instance role
+- **deploy_ansible_play**: Ansible playbook deployment
+- **deploy_ansible_pull**: Ansible pull deployment
+- **test_deploy_ohai**: Test deployment (success)
+- **test_deploy_fail**: Test deployment (failure)
+- **triggered_by_git_hook**: Git hook trigger for deployments
 
 ## Usage
 

@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+check_disk_warning: 20%
+check_disk_critical: 10%
+check_disk_paths: [] # Default empty, must be specified
+check_disk_exclude_types: []
+check_disk_include_types: []
+check_disk_local_only: true
+check_disk_timeout: 30
+check_disk_units: MB
+check_disk_id: "disk"
+check_disk_interval: "1h"

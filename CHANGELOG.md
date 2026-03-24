@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Rename roles for consistent naming scheme:
+  - Setup roles: `checker` -> `setup_check`, `deploy_deploy` -> `setup_deploy`, new `setup_notify`
+  - Check instance roles: `checker_check` -> `check`, `checker_check_disk` -> `check_disk`,
+    `checker_check_memory` -> `check_ram`, `checker_check_ping` -> `check_ping`,
+    `checker_check_systemd` -> `check_systemd`
+  - Notify instance roles: `checker_notify_alerta` -> `notify_alerta`,
+    `checker_notify_email` -> `notify_email`
+  - Deploy instance roles: `deploy_instance` -> `deploy`
+  - Test roles: `deploy_test_fail` -> `test_deploy_fail`, `deploy_test_ohai` -> `test_deploy_ohai`
+  - Trigger roles: `deploy_triggered_by_git_hook` -> `triggered_by_git_hook`
+  - New `managed` orchestrator role replaces `checker_disk_checks`, `checker_network_checks`,
+    `checker_system_checks` with feature flags
+- All role variable prefixes updated to match new role names
+
 ## [0.2.2] - 2026-03-24
 
 ### Changed

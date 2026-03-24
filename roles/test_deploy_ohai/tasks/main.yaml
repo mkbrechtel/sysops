@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+- name: Include deploy instance role
+  ansible.builtin.include_role:
+    role: deploy
+  vars:
+    deploy_id: "{{ test_deploy_ohai_instance_id }}"
+
+- name: Template init script for deploy instance {{ test_deploy_ohai_instance_id }}
+  ansible.builtin.template:
+    src: 01-test-ohai-init.j2
+    dest: "/etc/deploy/{{ test_deploy_ohai_instance_id }}/01-test-ohai-init"
+    mode: "0755"
+
+- name: Template deploy script for deploy instance {{ test_deploy_ohai_instance_id }}
+  ansible.builtin.template:
+    src: 02-test-ohai.j2
+    dest: "/etc/deploy/{{ test_deploy_ohai_instance_id }}/02-test-ohai"
+    mode: "0755"

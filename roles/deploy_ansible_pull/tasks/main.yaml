@@ -5,10 +5,10 @@
 ---
 - name: Import deploy instance role
   ansible.builtin.import_role:
-    role: deploy_instance
+    role: deploy
 
-- name: Template deploy script for deploy instance {{ deploy_instance_id }}
+- name: Template deploy script for deploy instance {{ deploy_id }}
   ansible.builtin.template:
     src: 01-ansible-pull.j2
-    dest: "{{ deploy_instance_path }}/01-ansible-pull"
+    dest: "{{ deploy_folder_path }}/01-ansible-pull"
     mode: "0755"
