@@ -8,5 +8,5 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 This collection uses global variables that are shared across roles where applicable:
 
-- `hostname`: The hostname of the system
+- `hostname_name`: The hostname of the system
 - `domain`: The primary domain name used for system configuration

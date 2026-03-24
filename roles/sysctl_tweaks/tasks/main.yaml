@@ -3,10 +3,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: increase maximum inotify user watches
+- name: Increase maximum inotify user watches
   ansible.posix.sysctl:
     name: fs.inotify.max_user_watches
     value: 524288
-    sysctl_set: yes
-  when: increase_maximum_inotify_user_watches
+    sysctl_set: true
+  when: sysctl_tweaks_increase_maximum_inotify_user_watches

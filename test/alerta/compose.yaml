@@ -1,14 +1,15 @@
+---
 # SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-version: '3.1'
+version: "3.1"
 
 services:
   web:
     image: alerta/alerta-web
     # volumes:
-      # - $PWD/config/config.json:/web/config.json
+    # - $PWD/config/config.json:/web/config.json
     ports:
       - 8080:8080
     depends_on:
@@ -19,7 +20,7 @@ services:
       - AUTH_REQUIRED=True
       - ADMIN_USERS=admin@alerta.io,devops@alerta.io
       - ADMIN_PASSWORD=super-secret # default is "alerta"
-      - ADMIN_KEY=demo-key  # assigned to first user in ADMIN_USERS
+      - ADMIN_KEY=demo-key # assigned to first user in ADMIN_USERS
       - ADMIN_KEY_MAXAGE=500
       # - NGINX_MAX_BODY_SIZE=42M  # allow larger alerts to be processed by alerta
       # - PLUGINS=remote_ip,reject,heartbeat,blackout,normalise,enhance

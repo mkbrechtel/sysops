@@ -3,18 +3,18 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: install zsh
+- name: Install zsh
   ansible.builtin.apt:
     name: zsh
     state: present
 
-- name: zsh config directory
+- name: Zsh config directory
   ansible.builtin.file:
     path: /etc/zsh/zshrc.d
     state: directory
+    mode: "0755"
 
-- name: source zshrc.d from zshrc
+- name: Source zshrc.d from zshrc
   ansible.builtin.blockinfile:
     path: /etc/zsh/zshrc
     marker: "# {mark} ANSIBLE MANAGED - source zshrc.d"
@@ -25,7 +25,7 @@
         done
       fi
 
-- name: zsh powerline-go prompt
+- name: Zsh powerline-go prompt
   ansible.builtin.copy:
     src: powerline-go.zsh
     dest: /etc/zsh/zshrc.d/powerline-go.zsh

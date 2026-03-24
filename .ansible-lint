@@ -3,10 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-- name: Microcode
-  ansible.builtin.apt:
-    pkg:
-      - intel-microcode
-      - amd64-microcode
-    state: present
-  when: microcode_update
+# Configuration for ansible-lint
+
+exclude_paths:
+  - .ansible/

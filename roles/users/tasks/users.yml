@@ -3,29 +3,28 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: primary group
-  group:
+- name: Primary group
+  ansible.builtin.group:
     name: "{{ item }}"
     gid: "{{ users[item].gid }}"
   loop: "{{ users.keys() | list }}"
   when: users[item].gid is defined
 
-- name: account
-  user:
+- name: Account
+  ansible.builtin.user:
     name: "{{ item }}"
     group: "{{ item }}"
     groups: "{{ users[item].groups | default([]) | join(',') }}"
     uid: "{{ users[item].uid }}"
-    home: "{{ users[item].home | default('/home/'+item) }}"
+    home: "{{ users[item].home | default('/home/' + item) }}"
     shell: "{{ users[item].shell | default('/usr/bin/fish') }}"
     create_home: true
     move_home: true
   loop: "{{ users.keys() | list }}"
   notify: restart systemd-logind.service
 
-- name: password
-  user:
+- name: Password
+  ansible.builtin.user:
     name: "{{ item }}"
     password: "{{ users[item].password }}"
   loop: "{{ users.keys() | list }}"

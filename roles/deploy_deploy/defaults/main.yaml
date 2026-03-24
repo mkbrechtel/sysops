@@ -4,13 +4,13 @@
 
 ---
 
-deploy_systemd_units_scope: system
-deploy_user_install_mode: global  # global or home
+deploy_deploy_systemd_units_scope: system
+deploy_deploy_user_install_mode: global # global or home
 
 # Notification settings
-notify_email_to: ""
-notify_email_from: "deploy@{{ ansible_hostname }}"
-notify_email_on_success: false
-notify_email_on_failure: true
-notify_email_max_output_lines: 100
-notify_email_rate_limit: 10
+deploy_deploy_notify_email_to: ""
+deploy_deploy_notify_email_from: "deploy@{{ ansible_hostname }}"
+deploy_deploy_notify_email_on_success: false
+deploy_deploy_notify_email_on_failure: true
+deploy_deploy_notify_email_max_output_lines: 100
+deploy_deploy_notify_email_rate_limit: 10

@@ -3,30 +3,32 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: make ssh-agent user service override directory
-  file:
+- name: Make ssh-agent user service override directory
+  ansible.builtin.file:
     path: /etc/systemd/user/ssh-agent.service.d
     state: directory
+    mode: "0755"
 
-- name: make ssh-agent user service enableable
-  copy:
+- name: Make ssh-agent user service enableable
+  ansible.builtin.copy:
     src: ssh-agent.service.d.install
     dest: /etc/systemd/user/ssh-agent.service.d/install.conf
+    mode: "0644"
 
-- name: ensure ssh-agent user service is enabled for all users
-  systemd:
-    enabled: yes
+- name: Ensure ssh-agent user service is enabled for all users
+  ansible.builtin.systemd:
+    enabled: true
     scope: global
     name: ssh-agent.service
 
-- name: ensure gpg-agent user socket is enabled for all users
-  systemd:
-    enabled: yes
+- name: Ensure gpg-agent user socket is enabled for all users
+  ansible.builtin.systemd:
+    enabled: true
     scope: global
     name: gpg-agent.socket
 
-- name: pam_env.conf
-  copy:
+- name: Pam_env.conf
+  ansible.builtin.copy:
     src: pam_env.conf
     dest: /etc/security/pam_env.conf
+    mode: "0644"

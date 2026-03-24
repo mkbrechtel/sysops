@@ -3,8 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: restart systemd-logind.service
-  systemd:
+- name: Restart systemd-logind.service
+  ansible.builtin.systemd:
     name: systemd-logind.service
     state: restarted

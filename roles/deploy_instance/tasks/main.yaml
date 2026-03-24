@@ -3,22 +3,22 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
 - name: Validate deploy instance ID format
-  assert:
+  ansible.builtin.assert:
     that:
       - deploy_instance_id is defined
       - deploy_instance_id is match('^[a-z0-9.-]+$')
       - deploy_instance_id | length <= 128
     fail_msg: "deploy_instance_id must contain only lowercase letters, numbers, dots, and hyphens (max 128 characters)"
 
-- name: Directory for the {{ deploy_instance_id }} deploy instance in {{ deploy_instance_scope }} scope
-  file:
+- name: Directory for deploy instance {{ deploy_instance_id }}
+  ansible.builtin.file:
     path: "{{ deploy_instance_path }}"
     state: directory
+    mode: "0755"
 
-- name: Template {{ ansible_parent_role_names | reverse | join(' ') }} environment config for the {{ deploy_instance_id }} deploy instance in {{ deploy_instance_scope }} scope
-  template:
+- name: Template environment config for deploy instance {{ deploy_instance_id }}
+  ansible.builtin.template:
     src: deploy.env.j2 # Note that the template here is intentionally missing because we want it to be taken from the calling role
     dest: "{{ deploy_instance_path }}/deploy.env"
-
+    mode: "0644"

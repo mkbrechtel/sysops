@@ -3,4 +3,4 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-check_id: memory
+checker_check_memory_id: memory

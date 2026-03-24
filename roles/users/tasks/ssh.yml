@@ -3,29 +3,29 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: ssh key
-  user:
+- name: Ssh key
+  ansible.builtin.user:
     name: "{{ item }}"
-    generate_ssh_key: yes
+    generate_ssh_key: true
     ssh_key_type: ed25519
   register: user_ssh_keys_info
   loop: "{{ users.keys() | list }}"
 
-- name: ssh directory
-  file:
-    path: "{{ users[item].home | default('/home/'+item) }}/.ssh"
+- name: Ssh directory
+  ansible.builtin.file:
+    path: "{{ users[item].home | default('/home/' + item) }}/.ssh"
     owner: "{{ item }}"
     group: "{{ item }}"
     mode: "0700"
     state: directory
   loop: "{{ users.keys() | list }}"
 
-- name: ssh authorized keys
-  template:
+- name: Ssh authorized keys
+  ansible.builtin.template:
     src: ssh_authorized_keys.j2
-    dest: "{{ users[item].home | default('/home/'+item) }}/.ssh/authorized_keys"
+    dest: "{{ users[item].home | default('/home/' + item) }}/.ssh/authorized_keys"
     owner: "{{ item }}"
     group: "{{ item }}"
+    mode: "0600"
   loop: "{{ users.keys() | list }}"
   when: users[item].ssh_authorized_keys is defined

@@ -4,22 +4,24 @@
 
 ---
 
-ansible_play_collections_path: 
-- collections
-- /usr/share/ansible/collections
+deploy_ansible_play_instance_id: "{{ undef() }}"
 
-ansible_play_install_ansible_galaxy_requirements: true
+deploy_ansible_play_collections_path:
+  - collections
+  - /usr/share/ansible/collections
 
-ansible_play_init_playbook:
+deploy_ansible_play_install_ansible_galaxy_requirements: true
+
+deploy_ansible_play_init_playbook:
   - name: Initialize ansible play environment
     hosts: localhost
     gather_facts: false
     vars:
-      install_ansible_galaxy_requirements: "{{ ansible_play_install_ansible_galaxy_requirements }}"
+      install_ansible_galaxy_requirements: "{{ deploy_ansible_play_install_ansible_galaxy_requirements }}"
     tasks:
       - name: Get ansible git repo
         git:
-          repo: "{{ ansible_play_git_repo }}"
+          repo: "{{ deploy_ansible_play_git_repo }}"
           dest: repo
       - name: Install ansible galaxy requirements
         community.general.ansible_galaxy_install:
@@ -27,5 +29,5 @@ ansible_play_init_playbook:
           requirements_file: repo/requirements.yml
         when: install_ansible_galaxy_requirements
 
-ansible_play_deploy_playbook:
-  - import_playbook: "repo/{{ ansible_play_import_playbook_filename }}"
+deploy_ansible_play_deploy_playbook:
+  - import_playbook: "repo/{{ deploy_ansible_play_import_playbook_filename }}"

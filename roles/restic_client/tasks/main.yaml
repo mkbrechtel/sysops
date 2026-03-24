@@ -4,30 +4,30 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-#- import_tasks: local_facts.yaml
+# - import_tasks: local_facts.yaml
 
-- name: ensure restic is installed from distribution repositories
-  apt:
-        name:
-          - restic
-          - pwgen
-          - apache2-utils
-        state: present
+- name: Ensure restic is installed from distribution repositories
+  ansible.builtin.apt:
+    name:
+      - restic
+      - pwgen
+      - apache2-utils
+    state: present
 
-- name: create /etc/restic directories
+- name: Create /etc/restic directories
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    mode: '0755'
+    mode: "0755"
   loop:
     - /etc/restic
     - /etc/restic/config
 
-- name: create /etc/restic directories (II)
+- name: Create /etc/restic directories (II)
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    mode: '0700'
+    mode: "0700"
   loop:
     - /etc/restic/repositories
     - /etc/restic/passwords
@@ -35,28 +35,36 @@
 - name: Create directory for ansible custom facts
   ansible.builtin.file:
     state: directory
-    mode: 0700
+    mode: "0700"
     path: /etc/ansible/facts.d
 
 - name: Write out restic per-repos secrets
   ansible.builtin.copy:
-    dest: '/etc/restic/repositories/{{ item.repository }}.key'
+    dest: "/etc/restic/repositories/{{ item.repository }}.key"
     content: "{{ item.key }}"
-  loop: "{{ restic_backup_directives }}"
+    mode: "0600"
+  loop: "{{ restic_client_backup_directives }}"
 
 - name: Generate per-server credentials
   ansible.builtin.shell:
-    creates: "/etc/restic/passwords/{{ restic_backup_url_hostport | b64encode }}.pw"
-    cmd: "/usr/bin/pwgen -s 16 | dd bs=1 count=16 > /etc/restic/passwords/{{ restic_backup_url_hostport | b64encode }}.pw"
+    creates: "/etc/restic/passwords/{{ restic_client_backup_url_hostport | b64encode }}.pw"
+    cmd: "set -o pipefail && /usr/bin/pwgen -s 16 | dd bs=1 count=16 > /etc/restic/passwords/{{ restic_client_backup_url_hostport | b64encode }}.pw"
+  args:
+    executable: /bin/bash
   # TODO: loop over multiple servers, once possible
 
 - name: Hash per-server credentials
   ansible.builtin.shell:
     # always regenerate the facts file until we have a [TODO] trigger for regenerating the password
-    cmd: '( /bin/echo -en "[backupuser_htpasswds]\npw1=" ;
-            /usr/bin/cat /etc/restic/passwords/{{ restic_backup_url_hostport | b64encode }}.pw | /usr/bin/htpasswd -niB {{ ansible_hostname|quote}}
-          ) > /etc/ansible/facts.d/backupuser_htpasswds.fact &&
-          chmod 600 /etc/ansible/facts.d/backupuser_htpasswds.fact'
+    cmd: >-
+      set -o pipefail &&
+      ( /bin/echo -en "[backupuser_htpasswds]\npw1=" ;
+      /usr/bin/cat /etc/restic/passwords/{{ restic_client_backup_url_hostport | b64encode }}.pw
+      | /usr/bin/htpasswd -niB {{ ansible_hostname | quote }} )
+      > /etc/ansible/facts.d/backupuser_htpasswds.fact
+      && chmod 600 /etc/ansible/facts.d/backupuser_htpasswds.fact
+    executable: /bin/bash
+  changed_when: true
 
 - name: Re-read facts after adding custom fact
   ansible.builtin.setup:
@@ -67,21 +75,22 @@
   loop_control:
     loop_var: backupserver
   # To combine loop/include_tasks with delegate, we include an intermediate task file
-  include_tasks: perserver.yaml
-
+  ansible.builtin.include_tasks: perserver.yaml
 - name: Create the restic per-backup config files
-  template:
-    src: 'per_backup.env.j2'
-    dest: '/etc/restic/config/{{ item.name }}.env.tmpl'
-  loop: "{{ restic_backup_directives }}"
+  ansible.builtin.template:
+    src: "per_backup.env.j2"
+    dest: "/etc/restic/config/{{ item.name }}.env.tmpl"
+    mode: "0600"
+  loop: "{{ restic_client_backup_directives }}"
   when: item.content is undefined
   # The Systemd service unit will read these via EnvironmentFile=
 
 - name: Create the restic per-backup config files (for special cases)
   ansible.builtin.copy:
-    dest: '/etc/restic/config/{{ item.name }}.env.tmpl'
+    dest: "/etc/restic/config/{{ item.name }}.env.tmpl"
     content: "{{ item.content }}"
-  loop: "{{ restic_backup_directives }}"
+    mode: "0600"
+  loop: "{{ restic_client_backup_directives }}"
   when: item.content is defined
   # or these, depending on the configuration
 
@@ -89,73 +98,75 @@
   ansible.builtin.shell:
     cmd: >
       umask 0177 ;
-      /usr/bin/sed -e "s/%INSERT_PASSWORD_HERE%/$(/usr/bin/cat /etc/restic/passwords/{{ restic_backup_url_hostport | b64encode }}.pw)/" < /etc/restic/config/{{ item.name|quote }}.env.tmpl
-      > /etc/restic/config/{{ item.name|quote }}.env
-      &&
-      chmod 0600 /etc/restic/config/{{ item.name|quote }}.env
-  loop: "{{ restic_backup_directives }}"
+      /usr/bin/sed -e "s/%INSERT_PASSWORD_HERE%/$(/usr/bin/cat
+      /etc/restic/passwords/{{ restic_client_backup_url_hostport | b64encode }}.pw)/"
+      < /etc/restic/config/{{ item.name | quote }}.env.tmpl
+      > /etc/restic/config/{{ item.name | quote }}.env
+      && chmod 0600 /etc/restic/config/{{ item.name | quote }}.env
+  changed_when: true
+  loop: "{{ restic_client_backup_directives }}"
 
-#- name: Check repository initialization and status
-#  ansible.builtin.shell:
-#    creates: "/etc/restic/repositories/{{ item.repository|quote }}.initialized"
-#    cmd: >
-#      restic stats --json -r {{ restic_backup_url|quote }}{{ item.repository|quote }} --password-file "/etc/restic/repositories/{{ item.repository|quote }}.key"
-#          > /etc/ansible/facts.d/restic-repos-{{ item.repository | quote }}.fact   &&
-#      touch '/etc/restic/repositories/{{ item.repository|quote }}.initialized'
-#  failed_when: false
-#  loop: "{{ restic_backup_directives }}"
-#  register: repository_x_stats
+# - name: Check repository initialization and status
+#   ansible.builtin.shell:
+#     creates: "/etc/restic/repositories/{{ item.repository|quote }}.initialized"
+#     cmd: >
+#       restic stats --json -r {{ restic_client_backup_url | quote }}{{ item.repository | quote }}
+#         --password-file "/etc/restic/repositories/{{ item.repository | quote }}.key"
+#           > /etc/ansible/facts.d/restic-repos-{{ item.repository | quote }}.fact   &&
+#       touch '/etc/restic/repositories/{{ item.repository|quote }}.initialized'
+#   failed_when: false
+#   loop: "{{ restic_client_backup_directives }}"
+#   register: repository_x_stats
 
-- name: create a file with the servers' certs
-  template:
-    src: 'restic-server-certs.pem.j2'
-    dest: '/etc/ssl/certs/restic-server-certs.pem'
-    mode: 0644
+- name: Create a file with the servers' certs
+  ansible.builtin.template:
+    src: "restic-server-certs.pem.j2"
+    dest: "/etc/ssl/certs/restic-server-certs.pem"
+    mode: "0644"
 
 - name: Create repository where necessary
   ansible.builtin.shell:
-    creates: "/etc/restic/repositories/{{ item.repository|quote }}.initialized"
+    creates: "/etc/restic/repositories/{{ item.repository | quote }}.initialized"
     cmd: >
-      . /etc/restic/config/{{ item.name|quote }}.env ;
+      . /etc/restic/config/{{ item.name | quote }}.env ;
       export RESTIC_REPOSITORY RESTIC_PASSWORD_FILE GODEBUG ;
       restic init --json $RESTIC_FLAGS_CACERT &&
-      touch '/etc/restic/repositories/{{ item.repository|quote }}.initialized'
-  loop: "{{ restic_backup_directives }}"
+      touch '/etc/restic/repositories/{{ item.repository | quote }}.initialized'
+  loop: "{{ restic_client_backup_directives }}"
 
-- name: deploy service unit for restic client
-  template:
-    src: 'restic-backup-oneshot@.service'
-    dest: '/etc/systemd/system/'
-    mode: 0644
+- name: Deploy service unit for restic client
+  ansible.builtin.template:
+    src: "restic-backup-oneshot@.service"
+    dest: "/etc/systemd/system/"
+    mode: "0644"
 
-- name: deploy specialized service unit for database backups
-  template:
-    src: 'restic-backup-oneshot@database.service.j2'
-    dest: '/etc/systemd/system/restic-backup-oneshot@{{ item.name|quote }}.service'
-    mode: 0644
-  loop: "{{ restic_backup_directives }}"
+- name: Deploy specialized service unit for database backups
+  ansible.builtin.template:
+    src: "restic-backup-oneshot@database.service.j2"
+    dest: "/etc/systemd/system/restic-backup-oneshot@{{ item.name | quote }}.service"
+    mode: "0644"
+  loop: "{{ restic_client_backup_directives }}"
   when: item.database_dump_command is defined
 
-- name: remove specialized service unit where unnecessary
+- name: Remove specialized service unit where unnecessary
   ansible.builtin.file:
-    path: '/etc/systemd/system/restic-backup-oneshot@{{ item.name|quote }}.service'
+    path: "/etc/systemd/system/restic-backup-oneshot@{{ item.name | quote }}.service"
     state: absent
-  loop: "{{ restic_backup_directives }}"
+  loop: "{{ restic_client_backup_directives }}"
   when: item.database_dump_command is undefined
 
-- name: deploy timer units for restic client
-  template:
-    src: 'restic-backup-daily@.timer'
-    dest: '/etc/systemd/system/'
-    mode: 0644
+- name: Deploy timer units for restic client
+  ansible.builtin.template:
+    src: "restic-backup-daily@.timer"
+    dest: "/etc/systemd/system/"
+    mode: "0644"
 
 - name: Have SystemD re-read configs
   ansible.builtin.systemd:
-    daemon_reload: yes
+    daemon_reload: true
 
 - name: Have SystemD enable the timer units
   ansible.builtin.systemd:
-    name: 'restic-backup-daily@{{ item.name | quote }}.timer'
+    name: "restic-backup-daily@{{ item.name | quote }}.timer"
     enabled: true
-  loop: "{{ restic_backup_directives }}"
-
+  loop: "{{ restic_client_backup_directives }}"

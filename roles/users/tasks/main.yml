@@ -3,26 +3,31 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- include_tasks: setup_{{ansible_os_family}}.yml
-
-- import_tasks: user_groups.yml
+- name: Include OS-specific setup tasks
+  ansible.builtin.include_tasks: setup_{{ ansible_os_family }}.yml
+- name: Import user groups tasks
+  ansible.builtin.import_tasks: user_groups.yml
   when: user_groups is defined
 
-- import_tasks: move.yaml
+- name: Import user move tasks
+  ansible.builtin.import_tasks: move.yaml
   when: users is defined
 
-- import_tasks: users.yml
+- name: Import user creation tasks
+  ansible.builtin.import_tasks: users.yml
   when: users is defined
 
-- import_tasks: home.yml
+- name: Import home directory tasks
+  ansible.builtin.import_tasks: home.yml
   when: users is defined
 
-- import_tasks: ssh.yml
+- name: Import SSH tasks
+  ansible.builtin.import_tasks: ssh.yml
   when: users is defined
 
-- import_tasks: linger.yml
+- name: Import linger tasks
+  ansible.builtin.import_tasks: linger.yml
   when: users is defined
 
-- name: flush handlers
-  meta: flush_handlers
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers

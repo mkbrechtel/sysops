@@ -4,148 +4,148 @@
 
 ---
 
-ansible_pull_common_option_args: >-
-  {% if ansible_pull_accept_host_key %}
+deploy_ansible_pull_common_option_args: >-
+  {% if deploy_ansible_pull_accept_host_key %}
   --accept-host-key
   {% endif %}
 
-  {% if ansible_pull_become_password_file %}
-  --become-password-file {{ ansible_pull_become_password_file | quote }}
+  {% if deploy_ansible_pull_become_password_file %}
+  --become-password-file {{ deploy_ansible_pull_become_password_file | quote }}
   {% endif %}
 
-  {% if ansible_pull_check %}
+  {% if deploy_ansible_pull_check %}
   --check
   {% endif %}
 
-  {% if ansible_pull_clean %}
+  {% if deploy_ansible_pull_clean %}
   --clean
   {% endif %}
 
-  {% if ansible_pull_connection_password_file %}
-  --connection-password-file {{ ansible_pull_connection_password_file | quote }}
+  {% if deploy_ansible_pull_connection_password_file %}
+  --connection-password-file {{ deploy_ansible_pull_connection_password_file | quote }}
   {% endif %}
 
-  {% if ansible_pull_diff %}
+  {% if deploy_ansible_pull_diff %}
   --diff
   {% endif %}
 
-  {% if ansible_pull_full %}
+  {% if deploy_ansible_pull_full %}
   --full
   {% endif %}
 
-  {% if ansible_pull_private_key_file %}
-  --private-key {{ ansible_pull_private_key_file | quote }}
+  {% if deploy_ansible_pull_private_key_file %}
+  --private-key {{ deploy_ansible_pull_private_key_file | quote }}
   {% endif %}
 
-  {% if ansible_pull_purge %}
+  {% if deploy_ansible_pull_purge %}
   --purge
   {% endif %}
 
-  {% if ansible_pull_scp_extra_args %}
-  --scp-extra-args {{ ansible_pull_scp_extra_args | quote }}
+  {% if deploy_ansible_pull_scp_extra_args %}
+  --scp-extra-args {{ deploy_ansible_pull_scp_extra_args | quote }}
   {% endif %}
 
-  {% if ansible_pull_sftp_extra_args %}
-  --sftp-extra-args {{ ansible_pull_sftp_extra_args | quote }}
+  {% if deploy_ansible_pull_sftp_extra_args %}
+  --sftp-extra-args {{ deploy_ansible_pull_sftp_extra_args | quote }}
   {% endif %}
 
-  {% if ansible_pull_skip_tags %}
-  --skip-tags {{ ansible_pull_skip_tags | quote }}
+  {% if deploy_ansible_pull_skip_tags %}
+  --skip-tags {{ deploy_ansible_pull_skip_tags | quote }}
   {% endif %}
 
-  {% if ansible_pull_ssh_common_args %}
-  --ssh-common-args {{ ansible_pull_ssh_common_args | quote }}
+  {% if deploy_ansible_pull_ssh_common_args %}
+  --ssh-common-args {{ deploy_ansible_pull_ssh_common_args | quote }}
   {% endif %}
 
-  {% if ansible_pull_ssh_extra_args %}
-  --ssh-extra-args {{ ansible_pull_ssh_extra_args | quote }}
+  {% if deploy_ansible_pull_ssh_extra_args %}
+  --ssh-extra-args {{ deploy_ansible_pull_ssh_extra_args | quote }}
   {% endif %}
 
-  {% if ansible_pull_track_subs %}
+  {% if deploy_ansible_pull_track_subs %}
   --track-subs
   {% endif %}
 
-  {% if ansible_pull_vault_id %}
-  --vault-id {{ ansible_pull_vault_id | quote }}
+  {% if deploy_ansible_pull_vault_id %}
+  --vault-id {{ deploy_ansible_pull_vault_id | quote }}
   {% endif %}
 
-  {% if ansible_pull_vault_password_file %}
-  --vault-password-file {{ ansible_pull_vault_password_file | quote }}
+  {% if deploy_ansible_pull_vault_password_file %}
+  --vault-password-file {{ deploy_ansible_pull_vault_password_file | quote }}
   {% endif %}
 
-  {% if ansible_pull_verify_commit %}
+  {% if deploy_ansible_pull_verify_commit %}
   --verify-commit
   {% endif %}
 
-  {% if ansible_pull_checkout %}
-  --checkout {{ ansible_pull_checkout | quote }}
+  {% if deploy_ansible_pull_checkout %}
+  --checkout {{ deploy_ansible_pull_checkout | quote }}
   {% endif %}
 
-  {% if ansible_pull_module_path %}
-  --module-path {{ ansible_pull_module_path | quote }}
+  {% if deploy_ansible_pull_module_path %}
+  --module-path {{ deploy_ansible_pull_module_path | quote }}
   {% endif %}
 
-  {% if ansible_pull_timeout %}
-   --timeout {{ ansible_pull_timeout | quote }}
+  {% if deploy_ansible_pull_timeout %}
+   --timeout {{ deploy_ansible_pull_timeout | quote }}
   {% endif %}
 
-  {% if ansible_pull_url %}
-  --url {{ ansible_pull_url | quote }}
+  {% if deploy_ansible_pull_url %}
+  --url {{ deploy_ansible_pull_url | quote }}
   {% endif %}
 
-  {% if ansible_pull_connection %}
-  --connection {{ ansible_pull_connection | quote }}
+  {% if deploy_ansible_pull_connection %}
+  --connection {{ deploy_ansible_pull_connection | quote }}
   {% endif %}
 
-  {% if ansible_pull_directory %}
-  --directory $(realpath {{ ansible_pull_directory | quote}})
+  {% if deploy_ansible_pull_directory %}
+  --directory $(realpath {{ deploy_ansible_pull_directory | quote }})
   {% endif %}
 
-  {% if ansible_pull_extra_vars %}
-  --extra-vars {{ ansible_pull_extra_vars | quote }}
+  {% if deploy_ansible_pull_extra_vars %}
+  --extra-vars {{ deploy_ansible_pull_extra_vars | quote }}
   {% endif %}
 
-  {% if ansible_pull_force %}
+  {% if deploy_ansible_pull_force %}
   --force
   {% endif %}
 
-  {% if ansible_pull_inventory %}
-  --inventory {{ ansible_pull_inventory | quote }}
+  {% if deploy_ansible_pull_inventory %}
+  --inventory {{ deploy_ansible_pull_inventory | quote }}
   {% endif %}
 
-  {% if ansible_pull_limit %}
-  --limit {{ ansible_pull_limit | quote }}
+  {% if deploy_ansible_pull_limit %}
+  --limit {{ deploy_ansible_pull_limit | quote }}
   {% endif %}
 
-  {% if ansible_pull_module_name %}
-  --module-name {{ ansible_pull_module_name | quote }}
+  {% if deploy_ansible_pull_module_name %}
+  --module-name {{ deploy_ansible_pull_module_name | quote }}
   {% endif %}
 
-  {% if ansible_pull_only_if_changed %}
+  {% if deploy_ansible_pull_only_if_changed %}
   --only-if-changed
   {% endif %}
 
-  {% if ansible_pull_sleep %}
-  --sleep {{ ansible_pull_sleep | quote }}
+  {% if deploy_ansible_pull_sleep %}
+  --sleep {{ deploy_ansible_pull_sleep | quote }}
   {% endif %}
 
-  {% if ansible_pull_tags %}
-  --tags {{ ansible_pull_tags | quote }}
+  {% if deploy_ansible_pull_tags %}
+  --tags {{ deploy_ansible_pull_tags | quote }}
   {% endif %}
 
-  {% if ansible_pull_remote_user %}
-  --user {{ ansible_pull_remote_user | quote }}
+  {% if deploy_ansible_pull_remote_user %}
+  --user {{ deploy_ansible_pull_remote_user | quote }}
   {% endif %}
 
-  {% if ansible_pull_verbose %}
+  {% if deploy_ansible_pull_verbose %}
   --verbose
   {% endif %}
 
-ansible_pull_playbooks_args: >-
-  {% if ansible_pull_playbooks is iterable %}
-  {% for playbook in ansible_pull_playbooks %}
-  {{playbook}}
+deploy_ansible_pull_playbooks_args: >-
+  {% if deploy_ansible_pull_playbooks is iterable %}
+  {% for playbook in deploy_ansible_pull_playbooks %}
+  {{ playbook }}
   {% endfor %}
   {% else %}
-  {{ansible_pull_playbooks}}
+  {{ deploy_ansible_pull_playbooks }}
   {% endif %}

@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
 - name: Install locales package
   ansible.builtin.apt:
     name: "{{ locales_with_all | ternary('locales-all', 'locales') }}"
@@ -19,8 +18,10 @@
   ansible.builtin.template:
     src: default_locale.j2
     dest: /etc/locale.conf
+    mode: "0644"
 
 - name: Configure /etc/default/locale
   ansible.builtin.template:
     src: default_locale.j2
     dest: /etc/default/locale
+    mode: "0644"

@@ -1,18 +1,22 @@
+---
 # SPDX-FileCopyrightText: 2013 - 2022 Philipp Kaluza <consult@ghostroute.eu>
 # SPDX-FileCopyrightText: 2016 - 2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-restic_backup_url_prefix: 'rest:https://'
-restic_backup_url_hostport: 'test-backupserver:8000'
-restic_backup_username: '{{ ansible_hostname }}'
+restic_client_backup_url_prefix: "rest:https://"
+restic_client_backup_url_hostport: "test-backupserver:8000"
+restic_client_backup_username: "{{ ansible_hostname }}"
 
-restic_backup_directives:
-  - { name: 'files',            repository: '{{ ansible_hostname }}_files',        key: 'jj',           flags: '-x', directories: '/etc/restic/' }
-    # his backs up normal dirs and files
-  - { name: 'dbexample',        repository: '{{ ansible_hostname }}_dbexample',    key: 'jj2',          flags: '',   database_dump_command: 'date -u --iso-8601=s 2>&1 | tee $(mktemp dbexample-XXXXX.debug)' }
+restic_client_backup_directives:
+  - { name: "files", repository: "{{ ansible_hostname }}_files", key: "jj", flags: "-x", directories: "/etc/restic/" }
+  # this backs up normal dirs and files
+  - name: "dbexample"
+    repository: "{{ ansible_hostname }}_dbexample"
+    key: "jj2"
+    flags: ""
+    database_dump_command: "date -u --iso-8601=s 2>&1 | tee $(mktemp dbexample-XXXXX.debug)"
     # this allows you to back up from a database dump command, creating a backup with a single file '/stdin'
-  #- { name: 'my_special_case', repository: '{{ ansible_hostname }}_my_dbex2',     key: 'jj3',          content: 'DUMMY=0' }
+  # - { name: 'my_special_case', repository: '{{ ansible_hostname }}_my_dbex2', key: 'jj3', content: 'DUMMY=0' }
   # # The "special-case" option allows you to define everything manually, including the complete contents of the environment file.
   # # You'll probably also want to install a one-shot systemd unit like 'restic-backup-oneshot@my_special_case.service' in a separate task.
-

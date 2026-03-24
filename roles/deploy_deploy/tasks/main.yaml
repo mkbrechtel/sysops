@@ -3,5 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-- import_tasks: notify.yaml
-- import_tasks: systemd.yaml
+- name: Import notify tasks
+  ansible.builtin.import_tasks: notify.yaml
+- name: Import systemd tasks
+  ansible.builtin.import_tasks: systemd.yaml

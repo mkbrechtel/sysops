@@ -1,3 +1,4 @@
+---
 # SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
@@ -7,7 +8,7 @@ name: Release Ansible Collection
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 jobs:
   release:
@@ -19,10 +20,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install Ansible
-        run: |
+        run: >-
           pip install ansible-core
 
       - name: Get version from tag
@@ -30,21 +31,20 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Build collection
-        run: |
+        run: >-
           ansible-galaxy collection build --output-path ./dist
 
       - name: Get collection filename
         id: get_filename
-        run: |
+        run: |-
           COLLECTION_FILE=$(ls ./dist/*.tar.gz)
           echo "COLLECTION_FILE=$(basename $COLLECTION_FILE)" >> $GITHUB_OUTPUT
           echo "COLLECTION_PATH=$COLLECTION_FILE" >> $GITHUB_OUTPUT
 
-
       - name: Publish to Ansible Galaxy
         env:
           ANSIBLE_GALAXY_API_KEY: ${{ secrets.ANSIBLE_GALAXY_API_KEY }}
-        run: |
+        run: |-
           ansible-galaxy collection publish \
             --api-key="$ANSIBLE_GALAXY_API_KEY" \
             "${{ steps.get_filename.outputs.COLLECTION_PATH }}"

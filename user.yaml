@@ -3,11 +3,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
 - name: Deploy the Deployment System for the current user account
   hosts: localhost
   vars:
-    deploy_systemd_units_scope: user
+    deploy_deploy_systemd_units_scope: user
     deploy_instance_scope: user
   roles:
     - deploy_deploy

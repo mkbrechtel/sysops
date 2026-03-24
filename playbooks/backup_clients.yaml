@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-- hosts: backup_servers
+- name: Gather backup server facts
+  hosts: backup_servers
   remote_user: root
-  # Only gather server facts
 
-- hosts: backup_clients
+- name: Configure backup clients
+  hosts: backup_clients
   remote_user: root
   roles:
     - role: restic_client
-

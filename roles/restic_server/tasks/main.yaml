@@ -1,19 +1,20 @@
+---
 # SPDX-FileCopyrightText: 2013 - 2022 Philipp Kaluza <consult@ghostroute.eu>
 # SPDX-FileCopyrightText: 2016 - 2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # currently (2022-01), restic-rest is not being packaged for Debian; build one locally from the latest stable tag
-- name: create a build user for restic-rest
+- name: Create a build user for restic-rest
   ansible.builtin.user:
     name: restic-build
     state: present
-    system: yes
+    system: true
     home: /opt/restic-rest-builddir
     create_home: true
     password_lock: true
 
-- name: install build dependencies for restic-rest
+- name: Install build dependencies for restic-rest
   ansible.builtin.apt:
     name:
       - golang-go
@@ -21,25 +22,25 @@
       - ssl-cert
     state: present
 
-- name: git checkout of restic-rest TAG from upstream github repos
+- name: Git checkout of restic-rest TAG from upstream github repos
   become: true
   become_user: restic-build
   ansible.builtin.git:
     # TODO: this is only HTTPS-authenticated for now.
-    repo: 'https://gitlab+deploy-token-853823:Yki3nxrUs_RDShpx1uK5@gitlab.com/idcohorts/rps/restic-rest-mirror.git'
+    repo: "https://gitlab+deploy-token-853823:Yki3nxrUs_RDShpx1uK5@gitlab.com/idcohorts/rps/restic-rest-mirror.git"
     dest: /opt/restic-rest-builddir/restic-rest
     version: v0.10.0 # TODO parametrize
-    update: no
+    update: false
 
-- name: build restic-rest with system-installed go compiler
+- name: Build restic-rest with system-installed go compiler
   become: true
   become_user: restic-build
   environment:
-    CGO_ENABLED: '0'
+    CGO_ENABLED: "0"
   ansible.builtin.command:
     chdir: /opt/restic-rest-builddir/restic-rest
     creates: /opt/restic-rest-builddir/restic-rest/rest-server
-    cmd: 'go build -o rest-server ./cmd/rest-server'
+    cmd: "go build -o rest-server ./cmd/rest-server"
 
 - name: 'Install "rest-server" binary to "/usr/local/bin/rest-server"'
   ansible.builtin.copy:
@@ -48,16 +49,16 @@
     dest: /usr/local/bin/rest-server
     owner: root
     group: root
-    mode: '0755'
+    mode: "0755"
     # additional security measure; please note that GO doesn't build reproducably
     # disable if needed:
-    #checksum: 09e67321962be9a3258adc3d5dd146c7fe551dc0
+    # checksum: 09e67321962be9a3258adc3d5dd146c7fe551dc0
 
-- name: create a system user for restic-rest
+- name: Create a system user for restic-rest
   ansible.builtin.user:
     name: restic-service
     state: present
-    system: yes
+    system: true
     home: /dev/null
     create_home: false
     password_lock: true
@@ -66,57 +67,59 @@
   ansible.builtin.file:
     # Note: /srv/backupstorage should probably be a mountpoint for a separate filesystem,
     # but we don't enforce that here
-    path: "{{ restic_rest_backupstorage }}"
+    path: "{{ restic_server_backupstorage }}"
     state: directory
     owner: root
     group: restic-service
-    mode: '01770'
-    follow: no
+    mode: "01770"
+    follow: false
     # We make this directory root-owned, and set the "restricted deletion" bit. This prevents restic-service
     # and others to delete the .htasswd file.
 
 - name: Create directory for ansible custom facts
   ansible.builtin.file:
     state: directory
-    mode: 0700
+    mode: "0700"
     path: /etc/ansible/facts.d
   # This is needed by a "certificate changed" handler
 
-- import_role:
-    name: certificate
-    tasks_from: "provider-selfsigned.yml"
+# TODO: certificate role does not exist yet in this collection
+# - ansible.builtin.import_role:
+#     name: certificate
+#     tasks_from: "provider-selfsigned.yml"
 
 - name: Make X.509 private key file readable for daemon
   ansible.builtin.file:
-    path: "{{ certificate_private_key_file }}"
+    path: "{{ restic_server_certificate_private_key_file }}"
     state: file
     owner: root
     group: restic-service
-    mode: '0640'
-    follow: no
+    mode: "0640"
+    follow: false
 
 - name: Flush handlers
   # make new cert available as fact
-  meta: flush_handlers
+  ansible.builtin.meta: flush_handlers
 
 - name: Make sure .htpasswd is present
   ansible.builtin.file:
-    path: "{{ restic_rest_backupstorage }}/.htpasswd"
+    path: "{{ restic_server_backupstorage }}/.htpasswd"
     state: touch
     modification_time: preserve
     access_time: preserve
     owner: root
     group: restic-service
-    mode: '0640'
-    follow: no
+    mode: "0640"
+    follow: false
 
-- name: deploy service unit for restic daemon
-  template:
-    src: 'restic-server.service.j2'
-    dest: '/etc/systemd/system/restic-server.service'
-    mode: 0644
+- name: Deploy service unit for restic daemon
+  ansible.builtin.template:
+    src: "restic-server.service.j2"
+    dest: "/etc/systemd/system/restic-server.service"
+    mode: "0644"
 
-- import_tasks: htpasswd.yaml
+- name: Import htpasswd tasks
+  ansible.builtin.import_tasks: htpasswd.yaml
 
 - name: Have Systemd auto-enable the restic-rest daemon
   ansible.builtin.systemd:

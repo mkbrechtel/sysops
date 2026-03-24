@@ -3,4 +3,4 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-check_id: systemd
+checker_check_systemd_id: systemd

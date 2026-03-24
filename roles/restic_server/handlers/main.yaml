@@ -1,3 +1,4 @@
+---
 # SPDX-FileCopyrightText: 2013 - 2022 Philipp Kaluza <consult@ghostroute.eu>
 # SPDX-FileCopyrightText: 2016 - 2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 #
@@ -9,10 +10,11 @@
     name: restic-server.service
     state: restarted
 
-- name: make new cert available as fact
+- name: Make new cert available as fact
   listen: "certificate changed"
   ansible.builtin.shell:
-    cmd: '( echo -n "[restic_server_cert]\ncert=" ;
-            sed --null-data -e "s/\\n/\\\\n/g" < {{ certificate_file|quote }} ;
-            echo ""
-          ) > /etc/ansible/facts.d/restic_server_cert.fact'
+    cmd: >-
+      ( echo -n "[restic_server_cert]\ncert=" ;
+      sed --null-data -e "s/\\n/\\\\n/g" < {{ restic_server_certificate_file | quote }} ;
+      echo "" ) > /etc/ansible/facts.d/restic_server_cert.fact
+  changed_when: true

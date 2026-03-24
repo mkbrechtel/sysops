@@ -3,24 +3,18 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: check if systemd lingering is enabled
-  stat:
-    path: /var/lib/systemd/linger/{{item}}
+- name: Check if systemd lingering is enabled
+  ansible.builtin.stat:
+    path: /var/lib/systemd/linger/{{ item }}
   register: _users_systemd_linger_stat
   loop: "{{ users.keys() | list }}"
   when:
     - users[item].linger is defined
 
-- name: set systemd lingering
-  command:
-    loginctl
-    {{ users[item].linger | ternary('enable','disable') }}-linger
-    {{item}}
+- name: Set systemd lingering
+  ansible.builtin.command: loginctl {{ users[item].linger | ternary('enable', 'disable') }}-linger {{ item }}
+  changed_when: true
   loop: "{{ users.keys() | list }}"
   when:
     - users[item].linger is defined
-    - (
-        _users_systemd_linger_stat.results
-        | json_query("[?item=='"+item+"'].stat.exists") | first
-      ) != users[item].linger
+    - ( _users_systemd_linger_stat.results | json_query("[?item=='"+item+"'].stat.exists") | first ) != users[item].linger

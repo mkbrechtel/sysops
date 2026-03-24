@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
 # Generic check role. Import it like this in your check:
 # - name: Import deploy instance role
 #   ansible.builtin.import_role:
@@ -28,7 +27,7 @@
       CHECK_TIMEOUT={{ check_timeout | default(60) }}
       CHECK_MEMORY_MAX={{ check_memory_max | default('100M') }}
       CHECK_CPU_QUOTA={{ check_cpu_quota | default('20%') }}
-      
+
       # Process limits
       CHECK_LIMIT_NOFILE={{ check_limit_nofile | default(1024) }}
       CHECK_LIMIT_NPROC={{ check_limit_nproc | default(32) }}

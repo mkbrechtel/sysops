@@ -3,16 +3,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
 - name: Deploy the RPS Deployment System for the current user account
   hosts: localhost
   become: true
   roles:
     - deploy_deploy
     - webhook_server
-    - test_ohai
-    - test_fail
-    - role: ansible_play
-      deploy_instance_id: test-ansible-play
-      ansible_play_git_repo: "{{playbook_dir}}"
-      ansible_play_import_playbook_filename: ohai.yaml
+    - deploy_test_ohai
+    - deploy_test_fail
+    - role: deploy_ansible_play
+      deploy_ansible_play_instance_id: test-ansible-play
+      deploy_ansible_play_git_repo: "{{ playbook_dir }}"
+      deploy_ansible_play_import_playbook_filename: ohai.yaml

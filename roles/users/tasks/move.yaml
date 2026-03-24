@@ -3,15 +3,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: move group
-  command: "groupmod --new-name {{ item }} {{ users[item].old_name }}"
+- name: Move group
+  ansible.builtin.command: "groupmod --new-name {{ item }} {{ users[item].old_name }}"
+  changed_when: true
   loop: "{{ users.keys() | list }}"
   when: users[item].old_name is defined
   failed_when: false
 
-- name: move account
-  command: "usermod --login {{ item }} {{ users[item].old_name }}"
+- name: Move account
+  ansible.builtin.command: "usermod --login {{ item }} {{ users[item].old_name }}"
+  changed_when: true
   loop: "{{ users.keys() | list }}"
   when: users[item].old_name is defined
   failed_when: false

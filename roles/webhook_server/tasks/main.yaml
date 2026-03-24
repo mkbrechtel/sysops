@@ -4,80 +4,80 @@
 
 ---
 - name: Install required packages
-  apt:
+  ansible.builtin.apt:
     name:
       - webhook
       - python3-passlib
       - apache2-utils
     state: present
-    update_cache: yes
+    update_cache: true
 
 - name: Create webhook group
-  group:
-    name: "{{ webhook_group }}"
-    system: yes
+  ansible.builtin.group:
+    name: "{{ webhook_server_group }}"
+    system: true
     state: present
 
 - name: Create webhook user
-  user:
-    name: "{{ webhook_user }}"
-    group: "{{ webhook_group }}"
-    home: "{{ webhook_home }}"
+  ansible.builtin.user:
+    name: "{{ webhook_server_user }}"
+    group: "{{ webhook_server_group }}"
+    home: "{{ webhook_server_home }}"
     shell: /bin/bash
-    system: yes
-    create_home: yes
+    system: true
+    create_home: true
     state: present
 
 - name: Create webhook directories
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    owner: "{{ webhook_user }}"
-    group: "{{ webhook_group }}"
-    mode: '0755'
+    owner: "{{ webhook_server_user }}"
+    group: "{{ webhook_server_group }}"
+    mode: "0755"
   loop:
-    - "{{ webhook_config_dir }}"
-    - "{{ webhook_log_dir }}"
+    - "{{ webhook_server_config_dir }}"
+    - "{{ webhook_server_log_dir }}"
 
 - name: Configure sudo for webhook user to run deploy command
-  copy:
+  ansible.builtin.copy:
     content: |
       # Allow webhook user to run deploy command without password
-      {{ webhook_user }} ALL=(root) NOPASSWD: /usr/local/bin/deploy
+      {{ webhook_server_user }} ALL=(root) NOPASSWD: /usr/local/bin/deploy
     dest: /etc/sudoers.d/webhook-deploy
-    mode: '0440'
-    validate: 'visudo -cf %s'
+    mode: "0440"
+    validate: "visudo -cf %s"
 
 - name: Create htpasswd file for webhook authentication
-  htpasswd:
-    path: "{{ webhook_config_dir }}/.htpasswd"
-    name: "{{ webhook_auth_user }}"
-    password: "{{ webhook_auth_password }}"
-    owner: "{{ webhook_user }}"
-    group: "{{ webhook_group }}"
-    mode: '0640'
+  community.general.htpasswd:
+    path: "{{ webhook_server_config_dir }}/.htpasswd"
+    name: "{{ webhook_server_auth_user }}"
+    password: "{{ webhook_server_auth_password }}"
+    owner: "{{ webhook_server_user }}"
+    group: "{{ webhook_server_group }}"
+    mode: "0640"
 
 - name: Create webhook configuration
-  template:
+  ansible.builtin.template:
     src: hooks.json.j2
-    dest: "{{ webhook_config_file }}"
-    owner: "{{ webhook_user }}"
-    group: "{{ webhook_group }}"
-    mode: '0644'
+    dest: "{{ webhook_server_config_file }}"
+    owner: "{{ webhook_server_user }}"
+    group: "{{ webhook_server_group }}"
+    mode: "0644"
   notify: restart webhook
 
 - name: Create webhook systemd service override
-  template:
+  ansible.builtin.template:
     src: webhook.service.j2
     dest: /etc/systemd/system/webhook.service
-    mode: '0644'
+    mode: "0644"
   notify:
     - reload systemd
     - restart webhook
 
 - name: Ensure webhook service is enabled and started
-  systemd:
+  ansible.builtin.systemd:
     name: webhook
-    enabled: yes
+    enabled: true
     state: started
-    daemon_reload: yes
+    daemon_reload: true

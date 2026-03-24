@@ -13,7 +13,7 @@ Description=Restic-REST daemon
 After=network.target network-online.target systemd-networkd.service NetworkManager.service connman.service
 
 [Service]
-ExecStart=/usr/local/bin/rest-server {{ restic_rest_flags }} {% if restic_rest_allowoverwrites is undefined %}--append-only{% endif %} --path {{ restic_rest_backupstorage|quote }} --tls --tls-cert {{ certificate_file | quote }} --tls-key {{ certificate_private_key_file | quote }}
+ExecStart=/usr/local/bin/rest-server {{ restic_server_flags }} {% if restic_server_allowoverwrites is undefined %}--append-only{% endif %} --path {{ restic_server_backupstorage|quote }} --tls --tls-cert {{ restic_server_certificate_file | quote }} --tls-key {{ restic_server_certificate_private_key_file | quote }}
 Restart=always
 RestartSec=5
 User=restic-service
@@ -21,7 +21,7 @@ Group=restic-service
 # To be able to read our ssl key in /etc/ssl/private/
 SupplementaryGroups=ssl-cert
 ReadOnlyPaths="/etc/"
-ReadWritePaths="{{ restic_rest_backupstorage }}"
+ReadWritePaths="{{ restic_server_backupstorage }}"
 
 ## <COPYRIGHT_NOTICE> The following was taken from the systemd-example in restic-rest,
 ## commits  a994d347 examples/systemd/rest-server.service (Andreas Olsson    2020-09-13 14:04:21 +0200 39)

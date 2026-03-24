@@ -4,18 +4,18 @@
 
 ---
 # Email notification configuration
-notify_email_enabled: true
-notify_email_to: "root@localhost"
-notify_email_from: "checker@{{ ansible_hostname }}"
-notify_email_subject_prefix: "[CHECKER]"
+checker_notify_email_enabled: true
+checker_notify_email_to: "root@localhost"
+checker_notify_email_from: "checker@{{ ansible_hostname }}"
+checker_notify_email_subject_prefix: "[CHECKER]"
 
 # Notification settings
-notify_email_on_warning: true
-notify_email_on_critical: true
-notify_email_on_recovery: true
-notify_email_include_output: true
-notify_email_max_output_lines: 50
+checker_notify_email_on_warning: true
+checker_notify_email_on_critical: true
+checker_notify_email_on_recovery: true
+checker_notify_email_include_output: true
+checker_notify_email_max_output_lines: 50
 
 # Rate limiting
-notify_email_rate_limit: 10  # Max emails per hour per check
-notify_email_rate_window: 3600  # seconds
+checker_notify_email_rate_limit: 10 # Max emails per hour per check
+checker_notify_email_rate_window: 3600 # seconds

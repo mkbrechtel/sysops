@@ -3,20 +3,19 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
 - name: Mount points with checks to be created
-  debug:
-    msg: "{{ checks_for_disks_mounts }}"
+  ansible.builtin.debug:
+    msg: "{{ checker_disk_checks_mounts }}"
 
 - name: Create disk check for each mount
   ansible.builtin.include_role:
     name: checker_check_disk
   vars:
-    check_id: >-
+    checker_check_disk_id: >-
       {{
         'root-disk' if item == '/' else
         'disk-' ~ (item | trim('/') | regex_replace('/', '-'))
       }}
-    check_disk_paths:
+    checker_check_disk_paths:
       - "{{ item }}"
-  loop: "{{ checks_for_disks_mounts }}"
+  loop: "{{ checker_disk_checks_mounts }}"

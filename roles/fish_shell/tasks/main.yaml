@@ -3,21 +3,22 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: install fish
+- name: Install fish
   ansible.builtin.apt:
     name: fish
     state: present
 
-- name: fish config directory
-  file:
+- name: Fish config directory
+  ansible.builtin.file:
     path: /etc/fish/conf.d
     state: directory
+    mode: "0755"
 
-- name: fish config files
-  copy:
+- name: Fish config files
+  ansible.builtin.copy:
     src: global/
     dest: /etc/fish/conf.d/
+    mode: "0644"
   with_items:
     - fish_title
     - fish_prompt

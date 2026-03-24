@@ -13,9 +13,9 @@ After=network.target
 
 [Service]
 Type=simple
-User={{ webhook_user }}
-Group={{ webhook_group }}
-ExecStart=/usr/bin/webhook -hooks {{ webhook_config_file }} -ip {{ webhook_listen_address }} -port {{ webhook_port }} -verbose -hotreload -logfile {{ webhook_log_file }}
+User={{ webhook_server_user }}
+Group={{ webhook_server_group }}
+ExecStart=/usr/bin/webhook -hooks {{ webhook_server_config_file }} -ip {{ webhook_server_listen_address }} -port {{ webhook_server_port }} -verbose -hotreload -logfile {{ webhook_server_log_file }}
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -26,7 +26,7 @@ NoNewPrivileges=false
 PrivateTmp=false
 ProtectSystem=false
 ProtectHome=false
-ReadWritePaths={{ webhook_log_dir }} {{ webhook_config_dir }}
+ReadWritePaths={{ webhook_server_log_dir }} {{ webhook_server_config_dir }}
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictSUIDSGID=false

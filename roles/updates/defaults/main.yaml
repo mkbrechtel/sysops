@@ -3,5 +3,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-unattended_upgrades: true
-reboot_after_updates: false
+updates_unattended_upgrades: true
+updates_reboot_after_updates: false

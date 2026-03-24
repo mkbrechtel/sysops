@@ -3,9 +3,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: groups
-  group:
+- name: Groups
+  ansible.builtin.group:
     name: "{{ item }}"
     gid: "{{ user_groups[item].gid }}"
   loop: "{{ user_groups.keys() | list }}"

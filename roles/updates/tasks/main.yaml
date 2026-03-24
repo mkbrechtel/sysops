@@ -3,23 +3,22 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: update apt cache
-  apt:
+- name: Update apt cache
+  ansible.builtin.apt:
     update_cache: true
     cache_valid_time: 3600
 
-- name: upgrade all packages
-  apt:
+- name: Upgrade all packages
+  ansible.builtin.apt:
     upgrade: dist
 
-- name: unattended-upgrades
-  apt:
+- name: Unattended-upgrades
+  ansible.builtin.apt:
     name: unattended-upgrades
   when:
-    - unattended_upgrades
+    - updates_unattended_upgrades
     - not ansible_bender is defined
 
-- name: reboot after updates
-  reboot:
-  when: reboot_after_updates
+- name: Reboot after updates
+  ansible.builtin.reboot:
+  when: updates_reboot_after_updates

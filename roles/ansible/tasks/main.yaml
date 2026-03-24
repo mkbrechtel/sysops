@@ -3,9 +3,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: debian packages
-  apt:
+- name: Debian packages
+  ansible.builtin.apt:
     pkg:
       - ansible
       - ansible-core
@@ -17,12 +16,14 @@
       - python3-libcloud
       - python3-netaddr
 
-- name: ansible etc directory
-  file:
+- name: Ansible etc directory
+  ansible.builtin.file:
     path: /etc/ansible
     state: directory
+    mode: "0755"
 
-- name: ansible config
-  template:
+- name: Ansible config
+  ansible.builtin.template:
     src: ansible.cfg.j2
     dest: /etc/ansible/ansible.cfg
+    mode: "0644"

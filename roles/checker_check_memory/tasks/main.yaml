@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
 - name: Import deploy instance role
   ansible.builtin.import_role:
     role: checker_check

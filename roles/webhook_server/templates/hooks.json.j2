@@ -25,7 +25,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
         {
           "match": {
             "type": "payload-hmac-sha256",
-            "secret": "{{ webhook_auth_password }}",
+            "secret": "{{ webhook_server_auth_password }}",
             "parameter": {
               "source": "header",
               "name": "X-Webhook-Signature"

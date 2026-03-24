@@ -3,19 +3,20 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
 - name: Import deploy instance role
-  import_role:
+  ansible.builtin.import_role:
     role: deploy_instance
+  vars:
+    deploy_instance_id: "{{ deploy_test_fail_instance_id }}"
 
-- name: Template init script for the {{ deploy_instance_id }} deploy instance
-  template:
+- name: Template init script for deploy instance {{ deploy_test_fail_instance_id }}
+  ansible.builtin.template:
     src: 01-test-fail-init.j2
     dest: "{{ deploy_instance_path }}/01-test-fail-init"
-    mode: '0755'
+    mode: "0755"
 
-- name: Template deploy script for the {{ deploy_instance_id }} deploy instance
-  template:
+- name: Template deploy script for deploy instance {{ deploy_test_fail_instance_id }}
+  ansible.builtin.template:
     src: 02-test-fail.j2
     dest: "{{ deploy_instance_path }}/02-test-fail"
-    mode: '0755'
+    mode: "0755"

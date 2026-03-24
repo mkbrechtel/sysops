@@ -3,50 +3,49 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
 - name: Create deploy directories
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    mode: '0755'
+    mode: "0755"
   loop:
     - /etc/deploy
     - /etc/deploy/notifiers
     - /var/lib/deploy
     - /var/lib/deploy/notify_email
-  when: deploy_systemd_units_scope == "system"
+  when: deploy_deploy_systemd_units_scope == "system"
 
 - name: Copy notification scripts
-  copy:
+  ansible.builtin.copy:
     src: "{{ item }}"
     dest: "/etc/deploy/{{ item | basename }}"
-    mode: '0755'
+    mode: "0755"
   loop:
     - notify.sh
     - notify-email.sh
-  when: deploy_systemd_units_scope == "system"
+  when: deploy_deploy_systemd_units_scope == "system"
 
 - name: Copy deploy.py script
-  copy:
+  ansible.builtin.copy:
     src: deploy.py
     dest: /usr/local/bin/deploy
-    mode: '0755'
-  when: deploy_systemd_units_scope == "system"
+    mode: "0755"
+  when: deploy_deploy_systemd_units_scope == "system"
 
 - name: Template email notification configuration
-  template:
+  ansible.builtin.template:
     src: notify_email.env.j2
     dest: /etc/deploy/notify_email.env
-    mode: '0644'
-  when: 
-    - deploy_systemd_units_scope == "system"
-    - notify_email_to != ""
+    mode: "0644"
+  when:
+    - deploy_deploy_systemd_units_scope == "system"
+    - deploy_deploy_notify_email_to != ""
 
 - name: Make email notifier executable
-  file:
+  ansible.builtin.file:
     path: /etc/deploy/notifiers/notify-email.sh
     src: /etc/deploy/notify-email.sh
     state: link
   when:
-    - deploy_systemd_units_scope == "system"
-    - notify_email_to != ""
+    - deploy_deploy_systemd_units_scope == "system"
+    - deploy_deploy_notify_email_to != ""

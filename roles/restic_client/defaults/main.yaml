@@ -1,13 +1,14 @@
+---
 # SPDX-FileCopyrightText: 2013 - 2022 Philipp Kaluza <consult@ghostroute.eu>
 # SPDX-FileCopyrightText: 2016 - 2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-restic_backup_url_prefix: 'rest:http://'
-restic_backup_url_hostport: '127.0.0.1:8000'
-restic_backup_username: '{{ ansible_hostname }}'
+restic_client_backup_url_prefix: "rest:http://"
+restic_client_backup_url_hostport: "127.0.0.1:8000"
+restic_client_backup_username: "{{ ansible_hostname }}"
 
-restic_backup_directives:
-  - { name: 'files', repository: '{{ ansible_hostname }}_files',        key: 'jj',           flags: '-x', directories: '/etc/restic/' }
-  - { name: 'mysql', repository: '{{ ansible_hostname }}_mysql',        key: 'jj2',          flags: '',   database_dump_command: 'date -u --iso-8601' }
-  - { name: 'special_case', repository: '{{ ansible_hostname }}_mysql', key: 'jj3',          content: 'ABC' }
+restic_client_backup_directives:
+  - { name: "files", repository: "{{ ansible_hostname }}_files", key: "jj", flags: "-x", directories: "/etc/restic/" }
+  - { name: "mysql", repository: "{{ ansible_hostname }}_mysql", key: "jj2", flags: "", database_dump_command: "date -u --iso-8601" }
+  - { name: "special_case", repository: "{{ ansible_hostname }}_mysql", key: "jj3", content: "ABC" }

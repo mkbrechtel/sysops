@@ -3,6 +3,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-motd: |
+motd_content: |
   This system is managed by the mkbrechtel.sysops Ansible collection.
   Manual changes may be overwritten without warning!

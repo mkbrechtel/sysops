@@ -1,3 +1,4 @@
+---
 # SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
@@ -16,4 +17,4 @@ debian_apt_sources_with_security_suite: true
 debian_apt_sources_security_mirror: https://security.debian.org/debian-security
 
 debian_apt_sources_with_source_packages: true
-debian_apt_sources_with_security_source_packages: "{{debian_apt_sources_with_source_packages}}"
+debian_apt_sources_with_security_source_packages: "{{ debian_apt_sources_with_source_packages }}"

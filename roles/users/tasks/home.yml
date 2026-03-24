@@ -3,10 +3,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- name: home directory
-  file:
-    path: "{{ users[item].home | default('/home/'+item) }}"
+- name: Home directory
+  ansible.builtin.file:
+    path: "{{ users[item].home | default('/home/' + item) }}"
     owner: "{{ item }}"
     group: "{{ item }}"
     mode: "{{ users[item].homedir_mode | default('u=rwx,g=rx,o=') }}"

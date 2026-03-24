@@ -10,35 +10,35 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 OPTIONS=""
 
-{% if check_disk_warning is string and check_disk_warning.endswith('%') %}
-OPTIONS="$OPTIONS -w {{ check_disk_warning }}"
+{% if checker_check_disk_warning is string and checker_check_disk_warning.endswith('%') %}
+OPTIONS="$OPTIONS -w {{ checker_check_disk_warning }}"
 {% else %}
-OPTIONS="$OPTIONS -w {{ check_disk_warning }}{{ 'MB' if check_disk_units == 'MB' else '' }}"
+OPTIONS="$OPTIONS -w {{ checker_check_disk_warning }}{{ 'MB' if checker_check_disk_units == 'MB' else '' }}"
 {% endif %}
 
-{% if check_disk_critical is string and check_disk_critical.endswith('%') %}
-OPTIONS="$OPTIONS -c {{ check_disk_critical }}"
+{% if checker_check_disk_critical is string and checker_check_disk_critical.endswith('%') %}
+OPTIONS="$OPTIONS -c {{ checker_check_disk_critical }}"
 {% else %}
-OPTIONS="$OPTIONS -c {{ check_disk_critical }}{{ 'MB' if check_disk_units == 'MB' else '' }}"
+OPTIONS="$OPTIONS -c {{ checker_check_disk_critical }}{{ 'MB' if checker_check_disk_units == 'MB' else '' }}"
 {% endif %}
 
-{% for path in check_disk_paths %}
+{% for path in checker_check_disk_paths %}
 OPTIONS="$OPTIONS -p {{ path }}"
 {% endfor %}
 
-{% for type in check_disk_exclude_types %}
+{% for type in checker_check_disk_exclude_types %}
 OPTIONS="$OPTIONS -X {{ type }}"
 {% endfor %}
 
-{% for type in check_disk_include_types %}
+{% for type in checker_check_disk_include_types %}
 OPTIONS="$OPTIONS -N {{ type }}"
 {% endfor %}
 
-{% if check_disk_local_only %}
+{% if checker_check_disk_local_only %}
 OPTIONS="$OPTIONS -l"
 {% endif %}
 
-OPTIONS="$OPTIONS -t {{ check_disk_timeout }}"
-OPTIONS="$OPTIONS -u {{ check_disk_units }}"
+OPTIONS="$OPTIONS -t {{ checker_check_disk_timeout }}"
+OPTIONS="$OPTIONS -u {{ checker_check_disk_units }}"
 
 exec /usr/lib/nagios/plugins/check_disk $OPTIONS

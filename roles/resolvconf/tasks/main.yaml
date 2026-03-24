@@ -3,17 +3,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-
-- when: resolvconf_enabled
+- name: Configure resolvconf
+  when: resolvconf_enabled
   block:
+    - name: Resolvconf debian package
+      ansible.builtin.apt:
+        pkg: resolvconf
 
-  - name: resolvconf debian package
-    apt:
-      pkg: resolvconf
-
-  - name: link resolv.conf
-    file:
-      src: /run/resolvconf/resolv.conf
-      dest: /etc/resolv.conf
-      state: link
-      force: true
+    - name: Link resolv.conf
+      ansible.builtin.file:
+        src: /run/resolvconf/resolv.conf
+        dest: /etc/resolv.conf
+        state: link
+        force: true

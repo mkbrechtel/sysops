@@ -4,42 +4,41 @@
 
 ---
 
-ansible_pull_playbooks: []
-
+deploy_ansible_pull_playbooks: []
 # common options
-ansible_pull_accept_host_key: false
-ansible_pull_become_password_file: null
-ansible_pull_check: false
-ansible_pull_clean: true
-ansible_pull_connection_password_file: null
-ansible_pull_diff: true
-ansible_pull_full: false
-ansible_pull_private_key_file: null
-ansible_pull_purge: false
-ansible_pull_scp_extra_args: null
-ansible_pull_sftp_extra_args: null
-ansible_pull_skip_tags: null
-ansible_pull_ssh_common_args: null
-ansible_pull_ssh_extra_args: null
-ansible_pull_track_subs: true
-ansible_pull_vault_id: null
-ansible_pull_vault_password_file: null
-ansible_pull_verify_commit: false
-ansible_pull_checkout: main
-ansible_pull_module_path: null
-ansible_pull_timeout: null
-ansible_pull_url: null
-ansible_pull_connection: null
-ansible_pull_directory: repo
-ansible_pull_extra_vars: {}
-ansible_pull_force: false
-ansible_pull_inventory: null
-ansible_pull_limit: null
-ansible_pull_module_name: null
-ansible_pull_only_if_changed: false
-ansible_pull_sleep: null
-ansible_pull_tags: null
-ansible_pull_remote_user: null
-ansible_pull_verbose: false
+deploy_ansible_pull_accept_host_key: false
+deploy_ansible_pull_become_password_file:
+deploy_ansible_pull_check: false
+deploy_ansible_pull_clean: true
+deploy_ansible_pull_connection_password_file:
+deploy_ansible_pull_diff: true
+deploy_ansible_pull_full: false
+deploy_ansible_pull_private_key_file:
+deploy_ansible_pull_purge: false
+deploy_ansible_pull_scp_extra_args:
+deploy_ansible_pull_sftp_extra_args:
+deploy_ansible_pull_skip_tags:
+deploy_ansible_pull_ssh_common_args:
+deploy_ansible_pull_ssh_extra_args:
+deploy_ansible_pull_track_subs: true
+deploy_ansible_pull_vault_id:
+deploy_ansible_pull_vault_password_file:
+deploy_ansible_pull_verify_commit: false
+deploy_ansible_pull_checkout: main
+deploy_ansible_pull_module_path:
+deploy_ansible_pull_timeout:
+deploy_ansible_pull_url:
+deploy_ansible_pull_connection:
+deploy_ansible_pull_directory: repo
+deploy_ansible_pull_extra_vars: {}
+deploy_ansible_pull_force: false
+deploy_ansible_pull_inventory:
+deploy_ansible_pull_limit:
+deploy_ansible_pull_module_name:
+deploy_ansible_pull_only_if_changed: false
+deploy_ansible_pull_sleep:
+deploy_ansible_pull_tags:
+deploy_ansible_pull_remote_user:
+deploy_ansible_pull_verbose: false
 
-#ansible_pull_collections_path: ./collections
+# deploy_ansible_pull_collections_path: ./collections

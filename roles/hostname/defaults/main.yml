@@ -4,5 +4,5 @@
 
 ---
 
-hostname: "{{ inventory_hostname }}"
+hostname_name: "{{ inventory_hostname }}"
 hostname_update: false
