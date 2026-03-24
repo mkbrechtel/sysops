@@ -2,7 +2,7 @@
 # see /usr/share/doc/powerline-go/copyright
 # SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 #
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-only
 
 function powerline_precmd() {
     PS1="$(/usr/bin/powerline-go -error $? -jobs ${${(%):%j}:-0} -shell zsh)"

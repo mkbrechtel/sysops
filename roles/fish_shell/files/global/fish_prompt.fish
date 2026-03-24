@@ -2,7 +2,7 @@
 # see /usr/share/doc/powerline-go/copyright
 # SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 #
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-only
 
 function fish_prompt
     set duration (math -s6 "$CMD_DURATION / 1000")
