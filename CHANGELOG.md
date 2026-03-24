@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-03-24
+
+### Changed
+- Require successful ansible-lint run before release workflow publishes to Galaxy
+
 ## [0.2.1] - 2026-03-24
 
 ### Fixed
