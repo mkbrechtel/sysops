@@ -1,0 +1,14 @@
+---
+# SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+ttyd_arch_map:
+  x86_64: x86_64
+  aarch64: aarch64
+  armv7l: armhf
+  armv6l: arm
+  i686: i686
+  s390x: s390x
+
+ttyd_install_path: "{{ ttyd_install_dir }}/ttyd.{{ ttyd_arch }}"

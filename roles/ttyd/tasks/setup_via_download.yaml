@@ -1,0 +1,37 @@
+---
+# SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+- name: Read local SHA256SUMS file
+  ansible.builtin.set_fact:
+    ttyd_expected_checksum: >-
+      {{ lookup('file', 'releases/download/' ~ ttyd_version ~ '/SHA256SUMS').splitlines()
+         | select('search', ttyd_binary_filename ~ '$')
+         | first
+         | split()
+         | first }}
+
+- name: Create ttyd install directory
+  ansible.builtin.file:
+    path: "{{ ttyd_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download ttyd binary
+  ansible.builtin.get_url:
+    url: "{{ ttyd_download_url }}"
+    dest: "{{ ttyd_install_path }}"
+    checksum: "sha256:{{ ttyd_expected_checksum }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Symlink ttyd to /usr/local/bin
+  ansible.builtin.file:
+    src: "{{ ttyd_install_path }}"
+    dest: /usr/local/bin/ttyd
+    state: link
+  when: ttyd_with_usr_local_bin_symlink

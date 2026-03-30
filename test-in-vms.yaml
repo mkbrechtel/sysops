@@ -56,3 +56,11 @@
     - setup_deploy
     - test_deploy_ohai
     - test_deploy_fail
+
+- name: Test devbox roles
+  hosts: devboxes
+  become: true
+  roles:
+    - role: ttyd
+      vars:
+        ttyd_with_usr_local_bin_symlink: true

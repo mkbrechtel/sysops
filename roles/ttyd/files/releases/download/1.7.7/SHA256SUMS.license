@@ -1,0 +1,8 @@
+This file is a mirror of the SHA256SUMS file from the ttyd GitHub release.
+It contains only a list of cryptographic checksums and is not a copyrightable work.
+The REUSE specification requires licensing information for every file, so we declare
+no copyright and use the project license as a formality.
+
+SPDX-FileCopyrightText: NONE
+
+SPDX-License-Identifier: AGPL-3.0-or-later

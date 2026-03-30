@@ -1,0 +1,27 @@
+---
+# SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Method to install ttyd: "download" fetches a pre-built binary from GitHub
+ttyd_setup_method: download
+
+# ttyd version to install (GitHub release tag, without leading "v")
+ttyd_version: "1.7.7"
+
+# GitHub repository URL
+ttyd_github_repo_url: "https://github.com/tsl0922/ttyd"
+
+# Architecture identifier used in the release asset filename
+ttyd_arch: "{{ ttyd_arch_map[ansible_architecture] | default(ansible_architecture) }}"
+
+# Download URLs
+ttyd_binary_filename: "ttyd.{{ ttyd_arch }}"
+ttyd_download_url: "{{ ttyd_github_repo_url }}/releases/download/{{ ttyd_version }}/{{ ttyd_binary_filename }}"
+ttyd_checksums_url: "{{ ttyd_github_repo_url }}/releases/download/{{ ttyd_version }}/SHA256SUMS"
+
+# Installation directory
+ttyd_install_dir: "/opt/ttyd"
+
+# Feature flags
+ttyd_with_usr_local_bin_symlink: false

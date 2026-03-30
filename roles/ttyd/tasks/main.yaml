@@ -1,16 +1,8 @@
+---
 # SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-[vms]
-sysops-test-common
-
-[setup_deploy]
-sysops-test-common
-
-[devboxes]
-sysops-test-devbox
-
-[vms:children]
-setup_deploy
-devboxes
+- name: Setup ttyd via download
+  ansible.builtin.import_tasks: setup_via_download.yaml
+  when: ttyd_setup_method == "download"
