@@ -151,9 +151,9 @@ The class prefix (`fs-` / `stream-`) on job directories matches the systemd inst
 
 Backup jobs do not run as root by default. One system user — `restic-backup-client` — owns every backup unit on the host. The server-side REST daemon runs as its own separate user (`restic-backup-server`, see the Server section); a host that acts as both client and server keeps the two envelopes distinct.
 
-**Fs-mode jobs** get `AmbientCapabilities=CAP_DAC_READ_SEARCH` and a matching bounding set. That capability bypasses DAC read-and-traverse checks without granting write or any other privilege — restic gets the "read anything" power it needs for whole-filesystem backups, and nothing else. restic itself is not setuid and gets no extra capabilities.
+**Fs-mode jobs** get `AmbientCapabilities=CAP_DAC_READ_SEARCH` and a matching bounding set, added via a class-wide drop-in on `restic-backup@fs-.service.d/`. That capability bypasses DAC read-and-traverse checks without granting write or any other privilege — restic gets the "read anything" power it needs for whole-filesystem backups, and nothing else. restic itself is not setuid and gets no extra capabilities.
 
-**Stream-mode jobs** also run as `restic-backup-client`, without `CAP_DAC_READ_SEARCH` — they do not read paths directly; they consume a stream produced by a service-owned export endpoint. What this ticket commits to: `stream_command` stays inventory-configurable, and the backup unit runs as the backup-client user without per-service privilege. How the stream actually reaches restic (socket activation, FIFO, systemd `StandardInput=` plumbing, a helper command) and how the producing service publishes it are out of scope here; that contract is defined in `service-export-import.feature.md` when it lands. Likely over socket communication, but the exact wiring is that ticket's job.
+**Stream-mode jobs** also run as `restic-backup-client` but drop `CAP_DAC_READ_SEARCH` — they do not read paths directly; they consume a stream produced by a service-owned export endpoint. The capability drop is delivered via a class-wide systemd drop-in under `restic-backup@stream-.service.d/` (see unit model). How the stream actually reaches restic (socket activation, FIFO, systemd `StandardInput=` plumbing) and how the producing service publishes it are out of scope here; that contract is defined in `service-export-import.feature.md` when it lands.
 
 ### Run-as-root escape hatch
 
@@ -175,8 +175,6 @@ Description=restic backup job %i
 [Service]
 Type=oneshot
 User=restic-backup-client
-AmbientCapabilities=CAP_DAC_READ_SEARCH
-CapabilityBoundingSet=CAP_DAC_READ_SEARCH
 NoNewPrivileges=yes
 EnvironmentFile=-/etc/restic/jobs/%i/repo/restic-repo.env
 EnvironmentFile=-/etc/restic/jobs/%i/repo/restic-repo.auth.env
@@ -184,14 +182,25 @@ EnvironmentFile=-/etc/restic/jobs/%i/restic-backup-job.env
 ExecStart=/usr/bin/restic backup $RESTIC_FLAGS
 ```
 
+The base template grants *no* capabilities. Each class adds back only what it needs via a class-wide drop-in — additive security, never subtractive.
+
 Per-job `.env` examples:
 
 - `fs-root` job: `RESTIC_FLAGS="-x /etc /var/lib"` (flags and paths).
 - `stream-pg` job: `RESTIC_FLAGS="--stdin --stdin-filename pg-dumpall.sql"`.
 
-**Class-wide drop-ins via dash-prefix** (systemd.unit(5), "Unit File Load Path"). For instance `restic-backup@stream-pg.service`, systemd reads drop-ins from `restic-backup@stream-pg.service.d/`, then `restic-backup@stream-.service.d/`, then `restic-backup@-.service.d/`. So a single `/etc/systemd/system/restic-backup@stream-.service.d/stream.conf` drop-in applies to every stream-mode instance without per-job templating. That is where stream-mode stdin wiring lands (socket activation / `StandardInput=` / FIFO, mechanism deferred to `service-export-import.feature.md`). It is also the clean place to drop `CAP_DAC_READ_SEARCH` for stream jobs later if we decide the trade is worth it.
+**Class-wide drop-ins via dash-prefix** (systemd.unit(5), "Unit File Load Path"). For instance `restic-backup@fs-root.service`, systemd reads drop-ins from `restic-backup@fs-root.service.d/`, then `restic-backup@fs-.service.d/`, then `restic-backup@-.service.d/`. A single class-wide drop-in applies to every instance of that class without per-job templating.
 
-Stream-mode jobs currently share the same capability envelope as fs-mode — a deliberate simplicity default. The mitigation is on the stream interface: once `service-export-import.feature.md` defines the import/export socket protocol, what stream-mode jobs actually exchange is bounded by that protocol, not by the capability bit. If that protocol ends up tight enough that dropping the capability is safe, a single `restic-backup@stream-.service.d/` override flips it for all stream jobs at once.
+Fs-mode needs read-anything access to back up a filesystem; the role ships a class-wide drop-in that grants it:
+
+```ini
+# /etc/systemd/system/restic-backup@fs-.service.d/capabilities.conf
+[Service]
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+```
+
+Stream-mode gets no drop-in for capabilities, so stream instances inherit the base template's empty envelope. They do not read arbitrary paths; they consume a service-published stream. A separate `restic-backup@stream-.service.d/stream.conf` drop-in carries the stdin wiring (socket activation / `StandardInput=` / FIFO, per `service-export-import.feature.md`) when that ticket lands — additive, alongside no capabilities.
 
 `EnvironmentFile=-` tolerates missing files (belt-and-braces for the auth chain on first run). Per-job customization — the `run_as_root: true` escape hatch — still lives in per-instance drop-ins under `/etc/systemd/system/restic-backup@<class>-<name>.service.d/*.conf`. The template stays canonical; overrides are additive files the role manages.
 
@@ -275,9 +284,8 @@ Continuous restore exercise via blue-green is **service-level only** (path 2). A
 - The three-list client config shape (`restic_repos`, `restic_file_backup_jobs`, `restic_stream_backup_jobs`) replaces the single `restic_client_backup_directives` list with its `database_dump_command`-vs-`directories` discriminator. Two job lists at the inventory layer (clearer schemas, no union typing) collapse to one systemd template at runtime (one timer battery, one monitoring key, one place to edit).
 - A job has exactly one repo. "Two repos means two snapshots" is a restic property: `restic backup` produces a new snapshot in each target repo, and those are semantically different snapshots, so they belong in different jobs. Multi-place-same-snapshot exists only via `restic copy`, which is the monitor's job.
 - Project-level chunker-parameter alignment (a dedicated `/<project>/.restic-base-repo` repo; every other repo init'd with `--copy-chunker-params --from-repo /<project>/.restic-base-repo`) is what makes the aggregated per-project offsite repo actually dedup. Skipping this step silently turns the offsite repo into a fan-in of unrelated chunk pools — correct but wasteful.
-- One template, argv-only ExecStart (`restic backup $RESTIC_FLAGS`). Instance names carry a class prefix (`fs-<name>`, `stream-<name>`), which gives systemd's dash-prefix drop-in rule a natural seam for class-wide overrides (stream stdin wiring, future capability drop for stream) without needing two templates or per-job duplication. Both classes currently share the `CAP_DAC_READ_SEARCH` envelope; the drop-in seam is where that can be narrowed later if the stream protocol makes it safe.
 - Composition via layered `EnvironmentFile=` + a single per-job `repo/` symlink directory lets each fragment have a single owner. The job's repo choice is one symlink; changing the repo is one `ansible.builtin.file` task.
-- Backup does not run as root. `CAP_DAC_READ_SEARCH` covers fs-mode and (since the template is shared) also applies to stream-mode. The backup user's privilege envelope stays "read any file" — not "run any command as any user".
+- Backup does not run as root. The base template grants zero capabilities; fs-mode adds `CAP_DAC_READ_SEARCH` via a class drop-in, stream-mode adds nothing. Additive, not subtractive — a future reader or security audit sees each class's privilege as an explicit grant, not an assumed default with carveouts.
 - Stream producers and consumers (import for restore) are not the backup role's concern. Service roles publish bidirectional stream endpoints; this role consumes the export direction and drives the import direction during restore. The interface — how publication and consumption wire together — lives in `service-export-import.feature.md`.
 - The per-project aggregated offsite repo enables cross-host dedup at the offsite layer without violating the per-host isolation at the near layer. `restic copy` respects chunking, so the wire cost is proportional to *new* content, not to the near repos' sizes.
 - Cross-host dedup at the offsite step works because `restic copy` identifies chunks by a hash of the content itself, so identical content from different hosts collapses into a single stored copy on the destination. Every repo in the cascade also does its own within-repo dedup automatically.
