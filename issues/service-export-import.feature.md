@@ -2,11 +2,13 @@
 status: draft
 ---
 
-# Streamable service exports
+# Service export / import streams
 
 ## Goal
 
-Define a uniform interface for services to produce a streaming export of their state, for use as the input side of backup (`restic backup --stdin`, `borg create --stdin`) and the input side of restore/import into a fresh instance. Enables service-level backup as a first-class level, alongside host-level and machine-level.
+Define a uniform **bidirectional** stream interface for services: produce a streaming export of their state (consumed by backup) and consume a streaming import of their state (produced by restore). Both directions share one contract, symmetric by design. Enables service-level backup and restore as a first-class level, alongside host-level and machine-level.
+
+The name deliberately signals bidirectionality — export is the backup direction, import is the restore direction, and they are the same pipe run the two ways.
 
 ## Scope
 
