@@ -6,13 +6,13 @@ status: draft
 
 ## Goal
 
-Working `restic_client`, `restic_server`, and `restic_monitor` roles as one of two backup paths (alongside borg) to satisfy 3-2-1. The three roles are the load-bearing triad: the client produces snapshots, the server holds the near repos password-free, the monitor carries read-only keys and does all the work that needs keys (freshness checks, integrity checks, offsite replication).
+Working `restic_client`, `restic_server`, and `restic_custodian` roles as one of two backup paths (alongside borg) to satisfy 3-2-1. The three roles are the load-bearing triad: the client produces snapshots, the server holds the near repos password-free, the custodian carries read-only keys and does all the work that needs keys (freshness checks, integrity checks, offsite replication).
 
-Per-host isolation on the server side, three backup levels on the client side (machine / host / service) delivered as three systemd job classes, monitored end-to-end, single near-target for clients with offsite cascade handled by the monitor.
+Per-host isolation on the server side, three backup levels on the client side (machine / host / service) delivered as three systemd job classes, monitored end-to-end, single near-target for clients with offsite cascade handled by the custodian.
 
 ## Status quo
 
-The collection already ships working `restic_client` and `restic_server` roles inherited from an earlier project. This ticket defines the target shape. Implementation is a rework that keeps what works (systemd timer + oneshot pattern, client-generates-then-delegates htpasswd) and swaps out the parts that do not scale (single-server URL as the only config knob, inline plaintext `key:` in inventory, two flavors of job in one list, no monitoring role at all, no offsite cascade, no integrity checks). The new `restic_monitor` role is net-new and specified in the Monitor section below.
+The collection already ships working `restic_client` and `restic_server` roles inherited from an earlier project. This ticket defines the target shape. Implementation is a rework that keeps what works (systemd timer + oneshot pattern, client-generates-then-delegates htpasswd) and swaps out the parts that do not scale (single-server URL as the only config knob, inline plaintext `key:` in inventory, two flavors of job in one list, no custodian role at all, no offsite cascade, no integrity checks). The new `restic_custodian` role is net-new and specified in the Custodian section below.
 
 ## Scope
 
@@ -32,7 +32,7 @@ A host belongs primarily to one project. Central shared infrastructure lives in 
 
 Near repo path on the server: `/<project>/<host>`. One repo per host — all jobs on that host write snapshots into the same repo, separated by `--tag` and snapshot paths, which is restic's native pattern. Project is an organizational prefix, not an enforced trust boundary. Enforcement is at the host level: one restic-server user per host, one access-allowed path prefix per user, enforced by `--private-repos`. Hosts within a project are isolated from each other's backups.
 
-Offsite repo layout is **per-project, aggregated**: `/<project>` on Hetzner Storage Box. All hosts in a project feed into one offsite repo via `restic copy` from the monitor (details in the cascade section). This unlocks cross-host dedup at the offsite layer — similar VM images, shared OS packages, the same config files across a fleet — because restic's content-defined chunking dedups identical chunks across snapshots within a repo.
+Offsite repo layout is **per-project, aggregated**: `/<project>` on Hetzner Storage Box. All hosts in a project feed into one offsite repo via `restic copy` from the custodian (details in the cascade section). This unlocks cross-host dedup at the offsite layer — similar VM images, shared OS packages, the same config files across a fleet — because restic's content-defined chunking dedups identical chunks across snapshots within a repo.
 
 Blue-green deployments within a project — and the use of restore-into-green as a DR drill — are tracked separately in `blue-green-deployments.feature.md`.
 
@@ -44,15 +44,15 @@ Per-project chunker alignment uses a dedicated **project base repo** as the cryp
 
 1. Project bootstrap creates `/<project>/.restic-base-repo` on the backup server — an empty repo whose sole purpose is holding the project's chunker polynomial. It never receives real snapshots.
 2. Every other repo in the project — near repos on the server, the `<project>/vms` repo, the aggregated offsite repo on Hetzner — is initialized with `restic init --copy-chunker-params --from-repo <backup-server-url>/<project>/.restic-base-repo`. Same crypto parameters, dedup works across the whole project.
-3. Init is idempotent: on re-run, the monitor (which owns this ritual — see the Monitor section below) checks whether a repo already exists; if yes, it verifies the chunker polynomial matches the project base and warns if it does not match.
+3. Init is idempotent: on re-run, the custodian (which owns this ritual — see the Custodian section below) checks whether a repo already exists; if yes, it verifies the chunker polynomial matches the project base and warns if it does not match.
 
 Using a dedicated base repo rather than "whichever repo was first" removes ambiguity about which polynomial a project uses and makes the bootstrap ritual explicit: create `/<project>/.restic-base-repo`, then every subsequent repo is derived. The base repo is tiny (just metadata) and can be read-shared project-wide so any future init from any host works without project-admin credentials.
 
 This same mechanism resolves the hypervisor-VM dedup case: the project's `<project>/vms` repo shares the project's crypto parameters via the base repo, so identical OS images across VMs dedup into a common chunk pool inside that repo and again inside the offsite aggregation.
 
-**Access to the base repo under `--private-repos`.** restic-server's private-repos mode restricts each user to paths matching their username. For the base repo at `/<project>/.restic-base-repo`, that means the user account itself has to be named `<project>/.restic-base-repo`. The base-repo password is stored only on the monitor (provisioned via the secrets role, same machinery as per-host repo credentials).
+**Access to the base repo under `--private-repos`.** restic-server's private-repos mode restricts each user to paths matching their username. For the base repo at `/<project>/.restic-base-repo`, that means the user account itself has to be named `<project>/.restic-base-repo`. The base-repo password is stored only on the custodian (provisioned via the secrets role, same machinery as per-host repo credentials).
 
-The client still owns the init code path. When a near repo needs to be initialized, the controller fetches the base-repo password from the monitor into a transient Ansible fact (`no_log` throughout), runs `restic init --copy-chunker-params --from-repo <backup-server-url>/<project>/.restic-base-repo` on the client with both passwords in its environment, and the fact is discarded at the end of the play. The base-repo password never lands on the client's disk; the init logic lives in one place (the client role) and is not duplicated on the monitor.
+The client still owns the init code path. When a near repo needs to be initialized, the controller fetches the base-repo password from the custodian into a transient Ansible fact (`no_log` throughout), runs `restic init --copy-chunker-params --from-repo <backup-server-url>/<project>/.restic-base-repo` on the client with both passwords in its environment, and the fact is discarded at the end of the play. The base-repo password never lands on the client's disk; the init logic lives in one place (the client role) and is not duplicated on the custodian.
 
 Whether restic-rest accepts usernames containing `/` under `--private-repos` is tracked as an open question below — the entire per-host / per-project scoping scheme here depends on it.
 
@@ -69,7 +69,7 @@ Cross-project dedup never happens — different chunker parameters, different re
 Three tiers, three roles:
 
 1. **Client → near.** Clients write directly into their per-host repo on `restic_server` via REST, using their own credentials. The server holds no decryption keys, ever.
-2. **Monitor → offsite.** The `restic_monitor` host holds read-only credentials for every near repo in its project (for freshness/integrity checks) and write credentials for the per-project offsite repo on Hetzner. Scheduled `restic copy` pulls from each near repo into the aggregated offsite repo. Cryptographically verified, deduplicated, no passwords on the server.
+2. **Custodian → offsite.** The `restic_custodian` host holds read-only credentials for every near repo in its project (for freshness/integrity checks) and write credentials for the per-project offsite repo on Hetzner. Scheduled `restic copy` pulls from each near repo into the aggregated offsite repo. Cryptographically verified, deduplicated, no passwords on the server.
 3. **Admin → airgapped (optional).** Weekly ritual, off-line key escrow, see `airgapped-escrow.feature.md`.
 
 The 3-2-1 rule — 3 copies, 2 media, 1 offsite — is satisfied at the *collection* level when both restic and borg run in parallel:
@@ -78,9 +78,9 @@ The 3-2-1 rule — 3 copies, 2 media, 1 offsite — is satisfied at the *collect
 - 2 media: restic's disk-based cascade is one medium; borg's separate repo format on different storage is the second.
 - 1 offsite: Hetzner Storage Box.
 
-Restic alone delivers 3 copies and 1 offsite but only 1 medium — borg is what closes the rule. The two paths are deliberately asymmetric: restic favors a self-hosted near target with monitor-driven offsite; borg favors hosted-as-a-service (Borgbase or direct-to-Hetzner), tracked in `backup-borg.feature.md`.
+Restic alone delivers 3 copies and 1 offsite but only 1 medium — borg is what closes the rule. The two paths are deliberately asymmetric: restic favors a self-hosted near target with custodian-driven offsite; borg favors hosted-as-a-service (Borgbase or direct-to-Hetzner), tracked in `backup-borg.feature.md`.
 
-Clients never configure an offsite repo directly. If a client needs a snapshot in a second repo (not a copy of an existing snapshot — a genuinely distinct second snapshot), that is modeled as a second job with a different `repo:`. "Same snapshot in two places" is always the monitor's job via `restic copy`.
+Clients never configure an offsite repo directly. If a client needs a snapshot in a second repo (not a copy of an existing snapshot — a genuinely distinct second snapshot), that is modeled as a second job with a different `repo:`. "Same snapshot in two places" is always the custodian's job via `restic copy`.
 
 ### Client — `restic_client`
 
@@ -265,49 +265,53 @@ Per job, `schedule: daily` becomes a drop-in on `restic-backup@<class>-<name>.ti
 
 A convenience `restic-backup.target` exists for "run every backup now" and for `systemctl list-dependencies restic-backup.target` visibility: it `Wants=` every enabled `restic-backup@<class>-<name>.service`. It is not on any timer — admins start it by hand when they want a full pass outside the schedule.
 
+**Run alerting.** The client's run check reads systemd unit state and exit code of the last `restic-backup@<class>-<name>.service` run and alerts on failed exit or overdue timer. Part of the checker framework, not a dedicated mechanism.
+
 Jobs scheduled at the same `OnCalendar=` fire concurrently by default. If a site needs sequential execution (bounded bandwidth, avoid contention), that is expressed per-job with `After=` drop-ins between specific instances — not by the scheduling layer. Certain conventions like an After=restic-backup@fs-root.service might be put into the `srv-`-class backups to streamline the overall backup process.
 
 ### Retention
 
 Retention is **off by default**. The role does not run `restic forget --prune` anywhere unless an admin explicitly opts in per repo; a backup that silently expires under an operator who did not realize a policy was active is the exact failure mode this default avoids.
 
-When enabled, retention lives on the monitor, not on the client. The monitor is the one host that holds the repo password and already reaches every repo in the project, so `forget --prune` naturally belongs there. Per-repo opt-in means a site can, for instance, keep the near server vacating aggressively while the Hetzner offsite retains everything forever, or the other way round — each repo's retention is its own decision, set on the monitor. The on/off knob and policy shape live in the Monitor section below.
+When enabled, retention lives on the custodian, not on the client. The custodian is the one host that holds the repo password and already reaches every repo in the project, so `forget --prune` naturally belongs there. Per-repo opt-in means a site can, for instance, keep the near server vacating aggressively while the Hetzner offsite retains everything forever, or the other way round — each repo's retention is its own decision, set on the custodian. The on/off knob and policy shape live in the Custodian section below.
 
 ### Integrity
 
 Integrity checks (`restic check`) for the **near repo** run on the client. The client already holds the near-repo password — moving the check elsewhere would duplicate credential-shuffling for no gain.
 
-The role ships a per-repo timer `restic-check@<repo>.timer` that activates `restic-check@<repo>.service`, running `restic check` against the repo referenced by its instance name. Default cadence: weekly `--read-data-subset=10%` (rotating sample), monthly full `--read-data`. Failure is a check-instance alert, same pipeline as run checks.
+The role ships a per-repo timer `restic-check@<repo>.timer` that activates `restic-check@<repo>.service`, running `restic check` against the repo referenced by its instance name. Default cadence: weekly `--read-data-subset=10%` (rotating sample), monthly full `--read-data`. A matching check instance reads the last unit's state and exit code and alerts on failure or overdue — same pipeline as run alerting.
 
-Integrity for the **aggregated per-project offsite repo** lives on the monitor — that is the only place the offsite credential exists. The monitor-side integrity schedule is described in the Monitor section below.
+Integrity for the **aggregated per-project offsite repo** lives on the custodian — that is the only place the offsite credential exists. The custodian-side integrity schedule is described in the Custodian section below.
 
 ### Server — `restic_server`
 
 Serves repos over REST with `--private-repos`, running as a dedicated `restic-backup-server` system user (distinct from the client-side `restic-backup-client` so hosts that run both roles keep separate privilege envelopes). Per-host user accounts authenticate via htpasswd; access scoped to `/<project>/<host>/*`. Restricted-deletion directory layout, rooted at `/srv/restic/`.
 
-TLS via the certificates role (see `secrets.feature.md`), replacing the self-signed cert + `GODEBUG=x509ignoreCN=0` workaround. The same certificates role also provides the SSH host-key material used to pin the Hetzner Storage Box endpoint on the monitor side.
+TLS via the certificates role (see `secrets.feature.md`), replacing the self-signed cert + `GODEBUG=x509ignoreCN=0` workaround. The same certificates role also provides the SSH host-key material used to pin the Hetzner Storage Box endpoint on the custodian side.
 
-**The server does not hold client repo passwords.** It is a dumb REST endpoint that authenticates and serves pack files. Password-bearing work is split: the client does its own near-repo integrity checks (it already has the near password); the monitor does offsite replication, offsite integrity, freshness, and base-repo init (it already holds the monitor-scoped credentials). Either way, the server never gets to decrypt anything — a deliberate split, since the server is the largest and longest-lived host in the cascade.
+**The server does not hold client repo passwords.** It is a dumb REST endpoint that authenticates and serves pack files. Password-bearing work is split: the client does its own near-repo integrity checks (it already has the near password); the custodian does offsite replication, offsite integrity, freshness, and base-repo init (it already holds the custodian-scoped credentials). Either way, the server never gets to decrypt anything — a deliberate split, since the server is the largest and longest-lived host in the cascade.
 
-Offsite replication is not the server's job — it is the monitor's. See the Monitor section below.
+**Narrow ongoing access from the controller.** After initial server bootstrap (a one-time privileged operation that installs restic-rest, writes the unit, creates directories), the only ongoing operation the controller needs on the server is appending or updating entries in `/srv/restic/.htpasswd` when projects add hosts or rotate credentials. The server role provisions a dedicated `restic-htpasswd-admin` user whose only privilege is writing that one file (enforced via file ownership plus a minimal sudoers rule for a narrow helper, or an SSH authorized-keys `command=` restriction — details in implementation). A compromised controller can add, remove, or modify htpasswd entries; it cannot delete or alter repo data. The "nuke every backup by SSHing to the server" path is not available.
 
-### Monitor — `restic_monitor`
+Offsite replication is not the server's job — it is the custodian's. See the Custodian section below.
 
-Per-project host, net-new in this ticket, owning everything that needs off-client observation plus everything that needs a multi-repo credential scope. Deploys as its own role, typically one instance per project. The monitor is observation + verification, not a failover or a backup for the backup — losing the monitor loses visibility, not data.
+### Custodian — `restic_custodian`
 
-**Scope: restic only.** The monitor pattern is specific to restic's self-hosted-near-with-server-side-offsite topology. Borg takes the opposite stance (direct-to-Borgbase, no central monitor to be a weak link) and is tracked in `backup-borg.feature.md`; the two paths are deliberately asymmetric.
+Per-project host, net-new in this ticket, owning everything that needs off-client observation plus everything that needs a multi-repo credential scope. Deploys as its own role, typically one instance per project. The custodian is observation + verification, not a failover or a backup for the backup — losing the custodian loses visibility, not data.
+
+**Scope: restic only.** The custodian pattern is specific to restic's self-hosted-near-with-server-side-offsite topology. Borg takes the opposite stance (direct-to-Borgbase, no central custodian to be a potential weak link) and is tracked in `backup-borg.feature.md`; the two paths are deliberately orthogonal.
 
 **Responsibilities:**
 
 - **Freshness check.** Calls `restic snapshots --latest 1 --json` per repo, alerts when the newest snapshot exceeds threshold (default `warn 25h / crit 49h`). Runs from a host that is not the client, so a dead client cannot mask a missing backup. Client-side run checks are the first line; the freshness check is the second line that catches the client being gone entirely.
-- **Offsite replication.** `restic copy` from each near repo into the aggregated per-project offsite repo on Hetzner, on a schedule. The monitor is the only host that holds both near read credentials and offsite write credentials.
+- **Offsite replication.** `restic copy` from each near repo into the aggregated per-project offsite repo on Hetzner, on a schedule. The custodian is the only host that holds both near read credentials and offsite write credentials.
 - **Offsite integrity.** `restic check` against the offsite repo. Default cadence matches the client side: weekly `--read-data-subset=10%`, monthly full `--read-data`. Alerts on failure or overdue. Near-repo integrity runs on the client (see Integrity section).
-- **On-demand integrity trigger.** When a freshness check sees a suspicious gap or anomaly, the monitor fires an out-of-schedule `restic check` against the affected repo without waiting for the next scheduled run.
-- **Repo init orchestration.** The monitor holds the `/<project>/.restic-base-repo` credential; the controller pulls it transiently to run `restic init --copy-chunker-params` on a client during bootstrap. See Project base repo and Credential provisioning sections for the detailed flow.
+- **On-demand integrity trigger.** When a freshness check sees a suspicious gap or anomaly, the custodian fires an out-of-schedule `restic check` against the affected repo without waiting for the next scheduled run.
+- **Repo init orchestration.** The custodian holds the `/<project>/.restic-base-repo` credential; the controller pulls it transiently to run `restic init --copy-chunker-params` on a client during bootstrap. See Project base repo and Credential provisioning sections for the detailed flow.
 - **On-line half of DR key escrow.** Holds read-only copies of every project-member repo's password. The airgapped-escrow ritual (see `airgapped-escrow.feature.md`) is the off-line half.
-- **Retention** (when enabled; off by default). `restic forget --prune` per repo, opt-in per repo. The monitor is the natural home because it already has every credential it needs; the client does not run prune.
+- **Retention** (when enabled; off by default). `restic forget --prune` per repo, opt-in per repo. The custodian is the natural home because it already has every credential it needs; the client does not run prune.
 
-**Credential scope.** The monitor holds, per project: one read-only password per near repo in the project, one write password for the offsite repo, one base-repo password. Provisioned via the secrets role on the monitor host; rotations flow through the same machinery as per-host repo credentials (see Credential provisioning section).
+**Credential scope.** The custodian holds, per project: one read-only password per near repo in the project, one write password for the offsite repo, one base-repo password. Provisioned via the secrets role on the custodian host; rotations flow through the same machinery as per-host repo credentials (see Credential provisioning section).
 
 ### Credential provisioning
 
@@ -315,25 +319,16 @@ For each `(host, repo)` pair the client talks to, the controller orchestrates a 
 
 1. On the client, the secrets module provisions `restic/<repo>-auth.env` (env-typed secret with `RESTIC_PASSWORD=…`) with source `random`, and returns the value to the controller via `fetch: true`. No plaintext lives in inventory.
 2. On the controller, the value is hashed with `password_hash('bcrypt')` (Jinja filter, no new primitive).
-3. A delegated task on the matching `restic_server` ensures the `(username, bcrypt)` line exists in `/srv/restic/.htpasswd`. Idempotent on re-run — the line is keyed by username so rotation replaces in place.
+3. A delegated task on the matching `restic_server` ensures the `(username, bcrypt)` line exists in `/srv/restic/.htpasswd`. The delegation connects as the narrow-scope `restic-htpasswd-admin` user (see Server section), so the controller-side attack surface for this step is just "can modify .htpasswd" — not "can touch repo data". Idempotent on re-run — the line is keyed by username so rotation replaces in place.
 4. Every task touching the password has `no_log: true`.
 
-The monitor receives its read-only copy of the same password through the same mechanism: the secrets module fetches the client's `restic/<repo>-auth.env` to the controller, and a delegated task installs it as the monitor's read-only credential for that repo. Monitor-side write credentials for the offsite Hetzner repo are provisioned independently.
+The custodian receives its read-only copy of the same password through the same mechanism: the secrets module fetches the client's `restic/<repo>-auth.env` to the controller, and a delegated task installs it as the custodian's read-only credential for that repo. Custodian-side write credentials for the offsite Hetzner repo are provisioned independently.
 
-Repo init runs on the client as a one-time bootstrap task. The controller fetches the project's base-repo password from the monitor (transient fact, `no_log`), then runs `restic init --copy-chunker-params --from-repo /<project>/.restic-base-repo` on the client with both the base-repo and the new repo's passwords in environment. The base-repo password is never written to disk on the client. See the project-base-repo section for the rationale and access model.
+Repo init runs on the client as a one-time bootstrap task. The controller fetches the project's base-repo password from the custodian (transient fact, `no_log`), then runs `restic init --copy-chunker-params --from-repo /<project>/.restic-base-repo` on the client with both the base-repo and the new repo's passwords in environment. The base-repo password is never written to disk on the client. See the project-base-repo section for the rationale and access model.
 
-Rotation goes through the secrets-role rotation machinery. A post-rotate hook on the client re-keys the restic repo (`restic key add` new, verify, then `restic key remove` old) and triggers the controller-side htpasswd and monitor-side-credential updates via deferred plays. The bcrypt htpasswd entry is treated as a public-key derivative of the stored secret — computed on demand, not stored separately under `/etc/secrets/`.
+Rotation goes through the secrets-role rotation machinery. A post-rotate hook on the client re-keys the restic repo (`restic key add` new, verify, then `restic key remove` old) and triggers the controller-side htpasswd and custodian-side-credential updates via deferred plays. The bcrypt htpasswd entry is treated as a public-key derivative of the stored secret — computed on demand, not stored separately under `/etc/secrets/`.
 
-The controller needs SSH access to client, server, and monitor during provisioning — the normal deploy assumption. The value transits via Ansible facts with `no_log`, never written to disk on the controller.
-
-### Monitoring
-
-Client-side:
-
-- **Run check** — reads systemd unit state and exit code of the last `restic-backup@<class>-<name>.service` run. Alerts on failed exit or overdue timer.
-- **Near-repo integrity check** — reads systemd unit state and exit code of the last `restic-check@<repo>.service` run. See the Integrity section above.
-
-Freshness check, offsite replication, offsite integrity check, and on-line key escrow live on the monitor host — see the Monitor section below.
+The controller needs SSH access to client, server, and custodian during provisioning — the normal deploy assumption. The value transits via Ansible facts with `no_log`, never written to disk on the controller.
 
 ### Restore
 
@@ -357,7 +352,7 @@ restic-with-repo near snapshots
 restic-with-repo near restore <snapshot-id> --target /tmp/recover
 ```
 
-No surprise behaviour, no "restore to state X" declaration — just the env composition so admins do not hand-assemble `RESTIC_REPOSITORY` and `RESTIC_PASSWORD` at 3am.
+No surprise behaviour, no "restore to state X" declaration — just the env composition so admins do not need to hand-assemble `RESTIC_REPOSITORY` and `RESTIC_PASSWORD` at 3am.
 
 **2. Service-level restore via the bidirectional stream contract.** For Service-level jobs (`srv-` class), restore is the inversion of export: the service role publishes an *import* socket alongside its export one, a backup-side helper streams the chosen snapshot from the repo into that socket, the service ingests. Both directions are defined by `service-export-import.feature.md`. This is also the mechanism the blue-green DR drill uses — stream the latest snapshot from the offsite (or near) repo into a fresh green environment's import socket, smoke-test, promote or discard.
 
@@ -366,9 +361,9 @@ Continuous restore exercise via blue-green is **Service-level only** (path 2). A
 
 ## Design notes
 
-- The three-role triad — client, server, monitor — splits duties along a password-access boundary. Server never decrypts, client only reads its own repo, monitor holds read-only project-wide keys plus offsite write credentials. This makes the server the simplest component despite being the longest-lived.
-- Four-list client config shape (`restic_repos`, `restic_host_backup_jobs`, `restic_service_backup_jobs`, `restic_vm_backup_jobs`) replaces the single `restic_client_backup_directives` list with its `database_dump_command`-vs-`directories` discriminator. Three job lists at the inventory layer (clearer schemas, no union typing) collapse to one systemd template at runtime (one timer battery, one monitoring key, one place to edit), with per-class drop-ins carrying the class-specific behaviour.
-- A job has exactly one repo. "Two repos means two snapshots" is a restic property: `restic backup` produces a new snapshot in each target repo, and those are semantically different snapshots, so they belong in different jobs. Multi-place-same-snapshot exists only via `restic copy`, which is the monitor's job.
+- The three-role triad — client, server, custodian — splits duties along a password-access boundary. Server never decrypts, client only appends to its own repo, custodian holds read-only project-wide keys plus offsite write credentials. This makes the server the simplest component despite being the longest-lived.
+- Four-list client config shape (`restic_repos`, `restic_host_backup_jobs`, `restic_service_backup_jobs`, `restic_vm_backup_jobs`) replaces the single `restic_client_backup_directives` list with its `database_dump_command`-vs-`directories` discriminator. Three job lists at the inventory layer (clearer schemas, no union typing) collapse to one systemd template at runtime (one timer battery, one alerting key, one place to edit), with per-class drop-ins carrying the class-specific behaviour.
+- A job has exactly one repo. "Two repos means two snapshots" is a restic property: `restic backup` produces a new snapshot in each target repo, and those are semantically different snapshots, so they belong in different jobs. Multi-place-same-snapshot exists only via `restic copy`, which is the custodian's job.
 - Project-level chunker-parameter alignment (a dedicated `/<project>/.restic-base-repo` repo; every other repo init'd with `--copy-chunker-params --from-repo /<project>/.restic-base-repo`) is what makes the aggregated per-project offsite repo actually dedup. Skipping this step silently turns the offsite repo into a fan-in of unrelated chunk pools — correct but wasteful.
 - Composition via layered `EnvironmentFile=` + a single per-job `repo/` symlink directory lets each fragment have a single owner. The job's repo choice is one symlink; changing the repo is one `ansible.builtin.file` task.
 - Backup does not run as root. The base template grants zero capabilities; each class drop-in adds exactly what its class needs — `CAP_DAC_READ_SEARCH` for fs-, nothing extra for srv-, and a stub for vm- (namespace reserved; actual grants added by the future hypervisor-backup ticket). Additive, not subtractive — a future reader or security audit sees each class's privilege as an explicit grant, not an assumed default with carveouts.
@@ -379,13 +374,14 @@ Continuous restore exercise via blue-green is **Service-level only** (path 2). A
 - Cross-host dedup at the server's filesystem layer — a hardlink pass over `/srv/restic` that collapses identical files across different hosts' near repos — depends on whether restic writes byte-identical files to disk for identical inputs. We have not empirically confirmed which way this goes. If it works, it is a pure storage win on top of what the offsite cascade already provides; if it does not, the pass finds no matches and wastes cycles. An opt-in server flag that schedules the pass only makes sense once this is measured.
 - Sharing disk blocks across near repos (if hardlink dedup turns out to work) supposedly does not let one host's operator read another host's backups. The per-repo index that maps stored blobs back to snapshots stays gated by each repo's password; the files on disk without that index are opaque content-addressed storage. Still worth confirming during the same empirical check before relying on the expected disk space saving properties.
 - The bcrypt htpasswd entry is a public-key-shaped derivative of the stored password — computed, not stored. Matches the SSH authorized-keys pattern.
-- Retention is off by default and lives on the monitor, not the client. Opt-in per repo. This sidesteps the "oops, a silent prune ate my long-term history" failure mode; sites pick asymmetric retention (vacate near aggressively, keep offsite forever, or the inverse) as their posture dictates. Details in `backup-monitor-host.feature.md`.
+- Controller → server ongoing access is narrowed to `.htpasswd` writes via the `restic-htpasswd-admin` user. A compromised controller cannot reach repo data on the server; the worst it can do is add/remove/alter htpasswd entries, which at most denies service (not data loss). Repo bytes are protected by file ownership, not by controller trust.
+- Retention is off by default and lives on the custodian, not the client. Opt-in per repo. This sidesteps the "oops, a silent prune ate my long-term history" failure mode; sites pick asymmetric retention (vacate near aggressively, keep offsite forever, or the inverse) as their posture dictates. Details in `backup-custodian-host.feature.md`.
 
 ## Open questions
 
 - **restic-rest user scoping for path-like usernames**. The whole per-host / per-project isolation scheme assumes restic-rest under `--private-repos` accepts usernames that contain `/` and matches them against multi-segment paths — e.g. user `<project>/<host>` mapping to `/<project>/<host>/*`, user `<project>/.restic-base-repo` mapping to that exact path. If restic-rest only treats usernames as a single top-level directory component, the scheme has to flatten (usernames like `<project>-<host>`, paths like `/<project>-<host>`), or drop to project-level isolation with a shared credential per project. Verify against the current restic-rest version before building anything else around the current layout.
 - **Server-side hardlink dedup across near repos**. Does restic write byte-identical files to disk when two repos in the same project back up identical inputs? Empirical test: init two repos with `--copy-chunker-params`, back up the same directory into each, diff the resulting files under `/srv/restic`. If identical files are frequent, ship an opt-in `server_hardlink_dedup: true` flag on the server role that schedules a `hardlink(1)` pass. If not, drop the idea. Same investigation should confirm the "sharing disk blocks does not share access" expectation before any flag flips on.
-- **Monitor per-project or per-site?** One monitor per project keeps credential blast radius small. One per site (holding all projects' read-only credentials) is cheaper but concentrates trust. Default: per-project; site-level is an override.
-- **Self-monitoring.** Who watches the monitor? A mutual check between two monitors in neighboring projects, or is a single line of defense acceptable?
-- **Monitor credential rotation.** When a client rotates its near-repo password, the monitor's read-only copy has to rotate too. Does the monitor pull the new value on its next run, or does the backup role's post-rotate hook push to it?
-- **Monitor placement.** Typically a dedicated small VM, or can it co-locate with other observability services (alertmanager, grafana) on an existing infra host?
+- **Custodian per-project or per-site?** One custodian per project keeps credential blast radius small. One per site (holding all projects' read-only credentials) is cheaper but concentrates trust. Default: per-project; site-level is an override.
+- **Custodian self-observation.** Who watches the custodian? A mutual check between two custodians in neighboring projects, or is a single line of defense acceptable?
+- **Custodian credential rotation.** When a client rotates its near-repo password, the custodian's read-only copy has to rotate too. Does the custodian pull the new value on its next run, or does the backup role's post-rotate hook push to it?
+- **Custodian placement.** Typically a dedicated small VM, or can it co-locate with other observability services (alertmanager, grafana) on an existing infra host?
