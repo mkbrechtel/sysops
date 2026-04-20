@@ -120,7 +120,7 @@ restic_file_backup_jobs:
 
 The default `root` job backs up everything on the root filesystem, with `-x` preventing descent into other mounts (`/var/lib/data`, `/home` on a separate partition, etc. — those go in their own jobs). The excludes list covers kernel virtual filesystems (`/proc`, `/sys`, `/dev`, `/run`), scratch space (`/tmp`, `/var/tmp`), and mountpoint shells (`/mnt`, `/media`). Distribution-specific additions (say `/var/lib/containers/storage` for a podman host) extend the list via role defaults, not inventory.
 
-**Uniqueness assertion**: the role refuses to template if any `name` appears in both lists, or appears twice in either list. One flat namespace for jobs. Caught early, not at systemd-enable time.
+**Uniqueness assertion**: the role refuses to template if a `name` appears twice within the same list. Names across lists do not collide because the systemd instance and on-disk path are prefixed with the class (`fs-<name>` or `stream-<name>`) — see the unit model and filesystem layout below. Caught early, not at systemd-enable time.
 
 ### Client filesystem layout
 
@@ -133,22 +133,25 @@ Everything the role owns lives under `/etc/restic/`. Secrets live under `/etc/se
       restic-repo.env          # RESTIC_REPOSITORY, RESTIC_CACERT, base flags
       restic-repo.auth.env     # symlink → /etc/secrets/restic/<repo>-auth.env (RESTIC_PASSWORD=…)
   jobs/
-    <job>/
-      restic-backup-job.env    # job-specific: RESTIC_FLAGS (flags + paths, or --stdin + filename)
+    fs-<name>/               # fs-mode job, systemd instance: restic-backup@fs-<name>
+      restic-backup-job.env    # RESTIC_FLAGS with flags + paths
+      repo                     # symlink → ../../repos/<selected-repo>/
+    stream-<name>/             # stream-mode job, systemd instance: restic-backup@stream-<name>
+      restic-backup-job.env    # RESTIC_FLAGS with --stdin --stdin-filename …
       repo                     # symlink → ../../repos/<selected-repo>/
 ```
 
 A repo's identity is the two files in its directory: `restic-repo.env` carries the public config (URL, cert path), `restic-repo.auth.env` carries the passphrase via symlink. Both are repo-level by design — the passphrase belongs to the repo, not the job, which is why it lives inside `repos/<repo>/` next to the URL.
 
-Jobs reach their repo through one symlink — `jobs/<job>/repo` → `../../repos/<selected-repo>` — so the unit file loads both repo fragments via a stable nested path. Changing a job's repo is a single symlink flip.
+Jobs reach their repo through one symlink — `jobs/<class>-<name>/repo` → `../../repos/<selected-repo>` — so the unit file loads both repo fragments via a stable nested path. Changing a job's repo is a single symlink flip.
 
-One flat `jobs/` dir holds both file and stream jobs (uniqueness assertion makes that safe). The systemd template decides which ExecStart fires based on which list the job came from.
+The class prefix (`fs-` / `stream-`) on job directories matches the systemd instance name, so `%i` expansion in the unit finds the job directory at `/etc/restic/jobs/%i/`. The prefix is what lets class-wide systemd drop-ins work (see unit model below) and it rules out name collisions between the two lists.
 
 ### Backup user isolation
 
 Backup jobs do not run as root by default. One system user — `restic-backup-client` — owns every backup unit on the host. The server-side REST daemon runs as its own separate user (`restic-backup-server`, see the Server section); a host that acts as both client and server keeps the two envelopes distinct.
 
-**File-mode jobs** get `AmbientCapabilities=CAP_DAC_READ_SEARCH` and a matching bounding set. That capability bypasses DAC read-and-traverse checks without granting write or any other privilege — restic gets the "read anything" power it needs for whole-filesystem backups, and nothing else. restic itself is not setuid and gets no extra capabilities.
+**Fs-mode jobs** get `AmbientCapabilities=CAP_DAC_READ_SEARCH` and a matching bounding set. That capability bypasses DAC read-and-traverse checks without granting write or any other privilege — restic gets the "read anything" power it needs for whole-filesystem backups, and nothing else. restic itself is not setuid and gets no extra capabilities.
 
 **Stream-mode jobs** also run as `restic-backup-client`, without `CAP_DAC_READ_SEARCH` — they do not read paths directly; they consume a stream produced by a service-owned export endpoint. What this ticket commits to: `stream_command` stays inventory-configurable, and the backup unit runs as the backup-client user without per-service privilege. How the stream actually reaches restic (socket activation, FIFO, systemd `StandardInput=` plumbing, a helper command) and how the producing service publishes it are out of scope here; that contract is defined in `service-export-import.feature.md` when it lands. Likely over socket communication, but the exact wiring is that ticket's job.
 
@@ -156,13 +159,13 @@ Backup jobs do not run as root by default. One system user — `restic-backup-cl
 
 When `CAP_DAC_READ_SEARCH` is not enough — MAC policies (SELinux, AppArmor) blocking read access, encrypted-at-rest filesystems with keys outside the `restic-backup-client` session keyring, niche kernel interfaces that ignore the capability — a per-job `run_as_root: true` override switches that job's unit to `User=root`.
 
-Implementation: the role drops `/etc/systemd/system/restic-backup@<job>.service.d/run-as-root.conf` with `[Service]\nUser=root\nAmbientCapabilities=\nCapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_READ_SEARCH ...` (reset to systemd's normal root defaults). Single template unit stays; the per-job drop-in is the only place `root` appears.
+Implementation: the role drops `/etc/systemd/system/restic-backup@<class>-<name>.service.d/run-as-root.conf` with `[Service]\nUser=root\nAmbientCapabilities=\nCapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_READ_SEARCH ...` (reset to systemd's normal root defaults). Single template unit stays; the per-instance drop-in is the only place `root` appears.
 
 This is an escape hatch, not a default. Each `run_as_root: true` job should carry a comment in inventory explaining *why* the capability path does not suffice. The docs-site page for this role calls out the pattern with a visible warning so new operators do not reach for it as a convenience.
 
 ### Unit model
 
-One template, `restic-backup@.service`, covers every job. ExecStart is env-driven; the per-job `.env` fills `RESTIC_FLAGS` with whatever the job needs.
+One template, `restic-backup@.service`, covers every job. Instance names are `<class>-<name>` (`fs-root`, `stream-pg`) so that systemd's dash-prefix drop-in rule reaches class-wide drop-ins automatically. ExecStart is env-driven; the per-job `.env` fills `RESTIC_FLAGS` with whatever the job needs.
 
 ```ini
 # /etc/systemd/system/restic-backup@.service
@@ -183,18 +186,20 @@ ExecStart=/usr/bin/restic backup $RESTIC_FLAGS
 
 Per-job `.env` examples:
 
-- File-mode job: `RESTIC_FLAGS="-x /etc /var/lib"` (flags and paths).
-- Stream-mode job: `RESTIC_FLAGS="--stdin --stdin-filename pg-dumpall.sql"`.
+- `fs-root` job: `RESTIC_FLAGS="-x /etc /var/lib"` (flags and paths).
+- `stream-pg` job: `RESTIC_FLAGS="--stdin --stdin-filename pg-dumpall.sql"`.
 
-Stream-mode jobs share the same capability envelope as file-mode — a deliberate simplicity trade. The mitigation is on the stream interface: once `service-export-import.feature.md` defines the import/export socket protocol, what stream-mode jobs actually exchange is bounded by that protocol, not by the capability bit. One template keeps the timer battery, the monitoring checks, and the operator mental model all keyed to a single unit name.
+**Class-wide drop-ins via dash-prefix** (systemd.unit(5), "Unit File Load Path"). For instance `restic-backup@stream-pg.service`, systemd reads drop-ins from `restic-backup@stream-pg.service.d/`, then `restic-backup@stream-.service.d/`, then `restic-backup@-.service.d/`. So a single `/etc/systemd/system/restic-backup@stream-.service.d/stream.conf` drop-in applies to every stream-mode instance without per-job templating. That is where stream-mode stdin wiring lands (socket activation / `StandardInput=` / FIFO, mechanism deferred to `service-export-import.feature.md`). It is also the clean place to drop `CAP_DAC_READ_SEARCH` for stream jobs later if we decide the trade is worth it.
 
-`EnvironmentFile=-` tolerates missing files (belt-and-braces for the auth chain on first run). Per-job customization — the `run_as_root: true` escape hatch, stream-mode stdin wiring (mechanism deferred to `service-export-import.feature.md`) — lives in systemd drop-ins under `/etc/systemd/system/restic-backup@<job>.service.d/*.conf`. The template stays canonical; overrides are additive files the role manages.
+Stream-mode jobs currently share the same capability envelope as fs-mode — a deliberate simplicity default. The mitigation is on the stream interface: once `service-export-import.feature.md` defines the import/export socket protocol, what stream-mode jobs actually exchange is bounded by that protocol, not by the capability bit. If that protocol ends up tight enough that dropping the capability is safe, a single `restic-backup@stream-.service.d/` override flips it for all stream jobs at once.
+
+`EnvironmentFile=-` tolerates missing files (belt-and-braces for the auth chain on first run). Per-job customization — the `run_as_root: true` escape hatch — still lives in per-instance drop-ins under `/etc/systemd/system/restic-backup@<class>-<name>.service.d/*.conf`. The template stays canonical; overrides are additive files the role manages.
 
 ### Scheduling — timer battery
 
 The role ships a fixed set of named cadence timers the site can opt into — the "timer battery" pattern already used by the checker and deploy roles. Cadences cover the range most backups ever want: `hourly`, `quarter-daily`, `daily`, `weekly`, `monthly`. Each timer fires a per-cadence target that pulls in the jobs opted into that cadence via `Wants=`.
 
-Per job the admin sets `schedule:` to one of those names. The role wires `restic-backup-<cadence>.target` ⊂ `Wants=` into `restic-backup@<job>.service`. Jobs within a cadence run sequentially (explicit `After=` between them) so failure is attributable per job and total bandwidth stays bounded.
+Per job the admin sets `schedule:` to one of those names. The role wires `restic-backup-<cadence>.target` ⊂ `Wants=` into `restic-backup@<class>-<name>.service`. Jobs within a cadence run sequentially (explicit `After=` between them) so failure is attributable per job and total bandwidth stays bounded.
 
 Retention (`restic forget --prune`) runs per repo, not per job — snapshots share the repo, and `forget` applies policy across the whole repo's tags. Default is `keep_daily: 365`, and the same policy applies to the near repo and the aggregated offsite repo. Generous cutoffs plus this symmetry mean replication timing drift cannot strand a snapshot: anything `forget` would remove has long since been copied by the monitor. Scheduled via the same timer battery.
 
@@ -231,7 +236,7 @@ The controller needs SSH access to client, server, and monitor during provisioni
 
 Client-side:
 
-- **Run check** — reads systemd unit state and exit code of the last `restic-backup@<job>.service` run. Alerts on failed exit or overdue timer.
+- **Run check** — reads systemd unit state and exit code of the last `restic-backup@<class>-<name>.service` run. Alerts on failed exit or overdue timer.
 
 Everything else (freshness check, integrity check, on-demand integrity trigger, offsite replication, on-line key escrow) lives on the monitor host — see `backup-monitor-host.feature.md`.
 
@@ -270,9 +275,9 @@ Continuous restore exercise via blue-green is **service-level only** (path 2). A
 - The three-list client config shape (`restic_repos`, `restic_file_backup_jobs`, `restic_stream_backup_jobs`) replaces the single `restic_client_backup_directives` list with its `database_dump_command`-vs-`directories` discriminator. Two job lists at the inventory layer (clearer schemas, no union typing) collapse to one systemd template at runtime (one timer battery, one monitoring key, one place to edit).
 - A job has exactly one repo. "Two repos means two snapshots" is a restic property: `restic backup` produces a new snapshot in each target repo, and those are semantically different snapshots, so they belong in different jobs. Multi-place-same-snapshot exists only via `restic copy`, which is the monitor's job.
 - Project-level chunker-parameter alignment (a dedicated `/<project>/.restic-base-repo` repo; every other repo init'd with `--copy-chunker-params --from-repo /<project>/.restic-base-repo`) is what makes the aggregated per-project offsite repo actually dedup. Skipping this step silently turns the offsite repo into a fan-in of unrelated chunk pools — correct but wasteful.
-- One template, no wrapper script, argv-only ExecStart (`restic backup $RESTIC_FLAGS`). Both job classes share the privilege envelope (`CAP_DAC_READ_SEARCH`). The stream-mode mitigation is on the protocol side — `service-export-import.feature.md` bounds what stream jobs actually do, not the capability bit.
+- One template, argv-only ExecStart (`restic backup $RESTIC_FLAGS`). Instance names carry a class prefix (`fs-<name>`, `stream-<name>`), which gives systemd's dash-prefix drop-in rule a natural seam for class-wide overrides (stream stdin wiring, future capability drop for stream) without needing two templates or per-job duplication. Both classes currently share the `CAP_DAC_READ_SEARCH` envelope; the drop-in seam is where that can be narrowed later if the stream protocol makes it safe.
 - Composition via layered `EnvironmentFile=` + a single per-job `repo/` symlink directory lets each fragment have a single owner. The job's repo choice is one symlink; changing the repo is one `ansible.builtin.file` task.
-- Backup does not run as root. `CAP_DAC_READ_SEARCH` covers file-mode and (since the template is shared) also applies to stream-mode. The backup user's privilege envelope stays "read any file" — not "run any command as any user".
+- Backup does not run as root. `CAP_DAC_READ_SEARCH` covers fs-mode and (since the template is shared) also applies to stream-mode. The backup user's privilege envelope stays "read any file" — not "run any command as any user".
 - Stream producers and consumers (import for restore) are not the backup role's concern. Service roles publish bidirectional stream endpoints; this role consumes the export direction and drives the import direction during restore. The interface — how publication and consumption wire together — lives in `service-export-import.feature.md`.
 - The per-project aggregated offsite repo enables cross-host dedup at the offsite layer without violating the per-host isolation at the near layer. `restic copy` respects chunking, so the wire cost is proportional to *new* content, not to the near repos' sizes.
 - Cross-host dedup at the offsite step works because `restic copy` identifies chunks by a hash of the content itself, so identical content from different hosts collapses into a single stored copy on the destination. Every repo in the cascade also does its own within-repo dedup automatically.
