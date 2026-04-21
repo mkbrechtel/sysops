@@ -25,6 +25,7 @@ tools_packages:
   - pv
   - qrencode
   - moreutils
+  - direnv
 
   # terminfo
   - kitty-terminfo
