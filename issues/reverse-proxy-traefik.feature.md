@@ -6,29 +6,25 @@ status: draft
 
 ## Goal
 
-A Traefik-based reverse proxy role that implements the web-service socket pattern (see `reverse-proxy.feature.md`). Picks up app sockets from `/run/web-services/<service>/http.sock`, terminates TLS, handles ACME, and serves as the single HTTPS ingress. Chosen per host for dynamic / container-heavy workloads where Traefik's provider model shines.
+A Traefik-based reverse proxy role that serves application sockets following the web-service socket pattern (see `reverse-proxy.pattern.md`). Sits on the outside of `/run/web-services/<service>/http.sock`, terminates TLS, handles ACME. Chosen per host for dynamic / container-heavy workloads where Traefik's provider model shines.
+
+Directionality (matching the pattern ticket): **left = outside, right = inside**. Traefik is to the right of the network and to the left of the app socket.
 
 ## Scope
 
 - Install and configure Traefik as a systemd service.
 - Single HTTPS entrypoint; HTTP → HTTPS redirect by default.
-- **Service discovery via the file provider** pointed at the registration-fragment directory (translated from the pattern's neutral fragments by this role).
-- **Socket discovery**: a second file-provider feed that maps each `/run/web-services/<service>/http.sock` to a Traefik service, joined to the vhost via the fragment.
+- **Traefik configuration owned by the deployer** — vhost-to-socket mappings, middlewares, auth, rate limits all live in the Traefik role's inventory, not handed in by app roles.
 - **ACME** via Traefik's built-in resolver (HTTP-01 by default; DNS-01 when the host declares DNS API credentials via the secrets role).
-- Middleware support: basic auth, forward-auth, rate-limiting — driven by the neutral fragment schema.
 
 ## Design notes
 
-### Why Traefik here
+### Why Traefik
 
-Its provider model is a natural fit for "watch a directory and react to changes", which is exactly what the fragment-based registration wants. ACME is built in. Dashboards and dynamic reconfiguration are part of the package, not bolt-ons.
-
-### File provider, not socket activation
-
-Traefik can discover services many ways; we use the file provider because the fragment directory is already the canonical source of truth. A docker/podman provider would tie the role to one container runtime; the file provider works equally well for socket-only apps and container apps because the discovery happens via the filesystem, not via a container API.
+Provider model, built-in ACME, native dashboard. Sweet spot is dynamic service discovery, but for our pattern Traefik is just one possible RPX with a unix-socket backend; the dynamic-discovery story is incidental here.
 
 ## Open questions
 
-- **Dashboard exposure.** Internal-only (unix socket, accessed via ssh tunnel), or a protected vhost with forward-auth? Leaning internal-only.
-- **Static vs. dynamic config split.** Traefik has a hard split; we need to pin down which knobs live in static (entrypoints, providers, ACME) and which are dynamic (everything fragment-driven).
+- **Dashboard exposure.** Internal-only (unix socket, accessed via ssh tunnel), or a protected vhost? Leaning internal-only.
+- **Static vs. dynamic config split.** Traefik has a hard split; pin down which knobs live where.
 - **Upgrade cadence.** Traefik's v2→v3 transition was painful. Pin a major, upgrade deliberately, or track latest?

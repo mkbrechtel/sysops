@@ -6,32 +6,29 @@ status: draft
 
 ## Goal
 
-An nginx-based reverse proxy role that implements the web-service socket pattern (see `reverse-proxy.feature.md`). Picks up app sockets from `/run/web-services/<service>/http.sock`, terminates TLS, handles ACME via a companion, and serves as the single HTTPS ingress. Chosen per host for predictable, static vhost layouts where nginx's tuning surface and operational familiarity win.
+An nginx-based reverse proxy role that serves application sockets following the web-service socket pattern (see `reverse-proxy.pattern.md`). Sits on the outside of `/run/web-services/<service>/http.sock`, terminates TLS, handles ACME via a companion. Chosen per host for predictable, static vhost layouts where nginx's tuning surface and operational familiarity win.
+
+Directionality (matching the pattern ticket): **left = outside, right = inside**. nginx is to the right of the network and to the left of the app socket.
 
 ## Scope
 
 - Install and configure nginx as a systemd service.
 - Single HTTPS entrypoint; HTTP → HTTPS redirect by default.
-- **Vhost generation**: translate the pattern's neutral fragment directory into per-vhost `server {}` blocks under `/etc/nginx/conf.d/` (or a similar managed directory), `proxy_pass` pointing at `unix:/run/web-services/<service>/http.sock`.
+- **nginx configuration owned by the deployer** — vhost-to-socket mappings (`proxy_pass unix:/run/web-services/<service>/http.sock`), `auth_basic` / `auth_request`, `limit_req`, headers all live in the nginx role's inventory, not handed in by app roles.
 - **ACME** via a companion (certbot or lego) with nginx reload on renewal. HTTP-01 by default; DNS-01 when the host declares DNS API credentials via the secrets role.
-- Middleware support: basic auth (`auth_basic`), forward-auth (via `auth_request`), rate limiting (`limit_req`) — driven by the neutral fragment schema.
 
 ## Design notes
 
-### Why nginx here
+### Why nginx
 
-Static vhost layouts, decades of tuning know-how, and operationally boring in a good way. Anyone who has run web services has debugged nginx at 3am and can read its logs without a manual. For hosts that are not container-heavy and where "reconfigure live" is not a requirement, the simpler mental model wins.
-
-### Fragment → vhost translation
-
-The role owns a small template that turns each neutral fragment into an nginx `server` block. Because nginx reloads are cheap and well-understood, we regenerate all vhosts and `nginx -t && systemctl reload nginx` on any fragment change — no live-watch provider needed.
+Static vhost layouts, decades of tuning know-how, operationally boring in a good way. For hosts that are not container-heavy and where "reconfigure live" is not a requirement, the simpler mental model wins.
 
 ### ACME companion
 
-nginx itself does not do ACME. Certbot with the nginx plugin (or lego) keeps certs under `/etc/letsencrypt/` and triggers an nginx reload on renewal. Keep the companion choice behind a variable; default to certbot for ubiquity.
+nginx itself does not do ACME. Certbot with the nginx plugin (or lego) keeps certs under `/etc/letsencrypt/` and triggers an nginx reload on renewal. Default to certbot for ubiquity; companion choice behind a variable.
 
 ## Open questions
 
-- **Dynamic modules.** We'll want at least `stream` for any raw-TCP side-channel and possibly `http_auth_request_module` for forward-auth. Does the Debian-packaged nginx ship what we need, or do we need `nginx-extras` / building from source?
-- **Reload blast radius.** A bad fragment would break *all* vhosts on reload. `nginx -t` before reload is mandatory; do we also want per-fragment validation in the role before the fragment lands on disk?
-- **Log format.** Stick with nginx defaults or define a structured (JSON) format compatible with the alerta / log-shipping story?
+- **Dynamic modules.** `http_auth_request_module` for forward-auth, possibly `stream` for raw-TCP side-channels. Debian-packaged nginx vs. `nginx-extras` vs. building from source — TBD.
+- **Reload blast radius.** A bad config breaks *all* vhosts on reload. `nginx -t` before reload is mandatory; do we want template-time validation in the role too?
+- **Log format.** nginx defaults vs. structured (JSON) for the alerta / log-shipping story.

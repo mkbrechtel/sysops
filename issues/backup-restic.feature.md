@@ -19,7 +19,7 @@ The collection already ships working `restic_client` and `restic_server` roles i
 ### Backup levels
 
 - **Host** (`fs-` class) — filesystem paths on the guest. **Implemented in this ticket.**
-- **Service** (`srv-` class) — streamed export from a running service (database dump, Keycloak realm export, Grafana dashboards, …) via restic's `--stdin` mode. **Shape defined here; wiring depends on `service-export-import.feature.md`.**
+- **Service** (`srv-` class) — streamed export from a running service (database dump, Keycloak realm export, Grafana dashboards, …) via restic's `--stdin` mode. **Shape defined here; wiring depends on `service-export-import.pattern.md`.**
 - **Virtual Machine** (`vm-` class) — VM disk volumes exported from the hypervisor layer, writing into the per-project `<project>/vms` repo. **Specified here as a named class with a stub drop-in; the actual export mechanism lands in a future hypervisor-backup ticket.**
 
 The three levels map one-to-one onto three job classes on the systemd side (see Unit model). Each class is a dash-prefix on the instance name; each gets its own class drop-in for activation, privileges, and trigger mechanism. Specifying all three classes up front — even for the not-yet-implemented vm case — reserves the namespace and pins the convention so a future ticket does not reshape it.
@@ -28,13 +28,13 @@ The three levels map one-to-one onto three job classes on the systemd side (see 
 
 ### Default repo model
 
-A host belongs primarily to one project. Central shared infrastructure lives in a project conventionally named `<org>-infra`; separate backup infrastructure lives in a project conventionally named `<org>-backup`. The canonical definitions of *project*, *service*, *host* and the conventional naming patterns live in `project-service-terminology.feature.md`; this ticket assumes them.
+A host belongs primarily to one project. Central shared infrastructure lives in a project conventionally named `<org>-infra`; separate backup infrastructure lives in a project conventionally named `<org>-backup`. The canonical definitions of *project*, *service*, *host* and the conventional naming patterns live in `project-service-terminology.pattern.md`; this ticket assumes them.
 
 Near repo path on the server: `/<project>/<host>`. One repo per host — all jobs on that host write snapshots into the same repo, separated by `--tag` and snapshot paths, which is restic's native pattern. Project is an organizational prefix, not an enforced trust boundary. Enforcement is at the host level: one restic-server user per host, one access-allowed path prefix per user, enforced by `--private-repos`. Hosts within a project are isolated from each other's backups.
 
 Offsite repo layout is **per-project, aggregated**: `/<project>` on Hetzner Storage Box. All hosts in a project feed into one offsite repo via `restic copy` from the custodian (details in the cascade section). This unlocks cross-host dedup at the offsite layer — similar VM images, shared OS packages, the same config files across a fleet — because restic's content-defined chunking dedups identical chunks across snapshots within a repo.
 
-Blue-green deployments within a project — and the use of restore-into-green as a DR drill — are tracked separately in `blue-green-deployments.feature.md`.
+Blue-green deployments within a project — and the use of restore-into-green as a DR drill — are tracked separately in `blue-green-deployments.pattern.md`.
 
 ### Project base repo for efficient deduplication
 
@@ -111,7 +111,7 @@ restic_host_backup_jobs:               # Host-level (fs- class)
     schedule: daily
 
 # restic_service_backup_jobs — Service-level (srv- class), empty by default.
-# Shape (once the stream contract is finalized in service-export-import.feature.md):
+# Shape (once the stream contract is finalized in service-export-import.pattern.md):
 # restic_service_backup_jobs:
 #   - name: pg
 #     stream_command: "…"                 # how to read the service-published export; TBD
@@ -165,7 +165,7 @@ Backup jobs do not run as root by default. One system user — `restic-backup-cl
 
 **Host-level jobs** (`fs-` class) get `AmbientCapabilities=CAP_DAC_READ_SEARCH` and a matching bounding set, added via a class-wide drop-in on `restic-backup@fs-.service.d/`. That capability bypasses DAC read-and-traverse checks without granting write or any other privilege — restic gets the "read anything" power it needs for whole-filesystem backups, and nothing else. restic itself is not setuid and gets no extra capabilities.
 
-**Service-level jobs** (`srv-` class) also run as `restic-backup-client`, without `CAP_DAC_READ_SEARCH` — they do not read paths directly; they consume a stream produced by a service-owned export endpoint. How the stream actually reaches restic (socket activation, FIFO, systemd `StandardInput=` plumbing) and how the producing service publishes it are out of scope here; that contract is defined in `service-export-import.feature.md` when it lands. The `restic-backup@srv-.service.d/` drop-in carries the stdin wiring and nothing more.
+**Service-level jobs** (`srv-` class) also run as `restic-backup-client`, without `CAP_DAC_READ_SEARCH` — they do not read paths directly; they consume a stream produced by a service-owned export endpoint. How the stream actually reaches restic (socket activation, FIFO, systemd `StandardInput=` plumbing) and how the producing service publishes it are out of scope here; that contract is defined in `service-export-import.pattern.md` when it lands. The `restic-backup@srv-.service.d/` drop-in carries the stdin wiring and nothing more.
 
 **Virtual-Machine-level jobs** (`vm-` class) are **not implemented in this ticket** — only the namespace and a stub `restic-backup@vm-.service.d/class.conf` drop-in are shipped so the class prefix is reserved. When the future hypervisor-backup ticket lands, it fills the stub with whatever hypervisor-side access the export mechanism needs (typically `SupplementaryGroups=libvirt` or equivalent) and wires the actual VM export. Until then, no `vm-<name>.service` instances exist.
 
@@ -215,13 +215,13 @@ CapabilityBoundingSet=CAP_DAC_READ_SEARCH
 Environment=RESTIC_CLASS_TAG=fs
 ```
 
-Service-level jobs get no capabilities, just the tag and (when `service-export-import.feature.md` lands) the stdin wiring:
+Service-level jobs get no capabilities, just the tag and (when `service-export-import.pattern.md` lands) the stdin wiring:
 
 ```ini
 # /etc/systemd/system/restic-backup@srv-.service.d/class.conf
 [Service]
 Environment=RESTIC_CLASS_TAG=srv
-# stdin source wired here per service-export-import.feature.md
+# stdin source wired here per service-export-import.pattern.md
 # (socket activation / StandardInput= / FIFO)
 ```
 
@@ -361,9 +361,9 @@ restic-with-repo near restore <snapshot-id> --target /tmp/recover
 
 No surprise behaviour, no "restore to state X" declaration — just the env composition so admins do not need to hand-assemble `RESTIC_REPOSITORY` and `RESTIC_PASSWORD` at 3am.
 
-**2. Service-level restore via the bidirectional stream contract.** For Service-level jobs (`srv-` class), restore is the inversion of export: the service role publishes an *import* socket alongside its export one, a backup-side helper streams the chosen snapshot from the repo into that socket, the service ingests. Both directions are defined by `service-export-import.feature.md`. This is also the mechanism the blue-green DR drill uses — stream the latest snapshot from the offsite (or near) repo into a fresh green environment's import socket, smoke-test, promote or discard.
+**2. Service-level restore via the bidirectional stream contract.** For Service-level jobs (`srv-` class), restore is the inversion of export: the service role publishes an *import* socket alongside its export one, a backup-side helper streams the chosen snapshot from the repo into that socket, the service ingests. Both directions are defined by `service-export-import.pattern.md`. This is also the mechanism the blue-green DR drill uses — stream the latest snapshot from the offsite (or near) repo into a fresh green environment's import socket, smoke-test, promote or discard.
 
-Continuous restore exercise via blue-green is **Service-level only** (path 2). A streamed service export restores cleanly into a fresh blue-green slot and can be smoke-tested there. Host-level (filesystem) restore targets a live system and does not map cleanly to blue-green; Virtual-Machine-level restore needs hypervisor cooperation. The nightly drill described in `blue-green-deployments.feature.md` operates on Service-level jobs via path 2.
+Continuous restore exercise via blue-green is **Service-level only** (path 2). A streamed service export restores cleanly into a fresh blue-green slot and can be smoke-tested there. Host-level (filesystem) restore targets a live system and does not map cleanly to blue-green; Virtual-Machine-level restore needs hypervisor cooperation. The nightly drill described in `blue-green-deployments.pattern.md` operates on Service-level jobs via path 2.
 
 
 ## Design notes
@@ -373,7 +373,7 @@ Continuous restore exercise via blue-green is **Service-level only** (path 2). A
 - Cross-host dedup at the server's filesystem layer — a hardlink pass over `/srv/restic` that collapses identical files across different hosts' near repos — depends on whether restic writes byte-identical files to disk for identical inputs. Not empirically confirmed. If it works, it is a pure storage win on top of the offsite cascade; if not, the pass finds no matches and wastes cycles. An opt-in server flag only makes sense once measured.
 - Sharing disk blocks across near repos (if hardlink dedup works) supposedly does not let one host's operator read another host's backups — the per-repo index stays gated by each repo's password; files on disk without that index are opaque content-addressed storage. Worth confirming during the same empirical check before relying on the disk-space saving.
 - The bcrypt htpasswd entry is a public-key-shaped derivative of the stored password — computed, not stored. Matches the SSH authorized-keys pattern.
-- Stream producers and consumers (import for restore) are not the backup role's concern. Service roles publish bidirectional stream endpoints; this role consumes the export direction and drives the import direction during restore. The interface lives in `service-export-import.feature.md`.
+- Stream producers and consumers (import for restore) are not the backup role's concern. Service roles publish bidirectional stream endpoints; this role consumes the export direction and drives the import direction during restore. The interface lives in `service-export-import.pattern.md`.
 
 ## Open questions
 

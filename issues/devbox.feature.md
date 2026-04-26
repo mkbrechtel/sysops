@@ -22,7 +22,7 @@ user works in their own context; the system provides guardrails.
   - A system prompt fragment with guardrails appropriate for this host.
   - Central skills (symlinks / copies into user config).
   - Central MCP server list.
-- All three services behind the reverse proxy (see `reverse-proxy.feature.md`).
+- All three services behind the reverse proxy (see `reverse-proxy.pattern.md`).
 
 ## Design notes
 

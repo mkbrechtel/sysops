@@ -4,6 +4,8 @@ status: draft
 
 # Project / service / host terminology
 
+> **Pattern.** Cross-cutting convention. The deliverable is a consolidated definition that lives in `docs/patterns/` once the ticket is closed; every other ticket that uses *project*, *service*, or *host* references this document.
+
 ## Goal
 
 A single canonical definition of the collection's organizational concepts — *project*, *service*, *host*, and any siblings they acquire — living in the documentation site so every role's spec can link to one place instead of redefining them. Today the terms appear across `secrets.feature.md`, `backup-restic.feature.md`, and more, with overlapping but not identical meanings.

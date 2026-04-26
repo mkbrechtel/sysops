@@ -40,7 +40,7 @@ Left is the outside, right is the inside. Backend is handled right side, Fronten
 
 ## Terminology
 
-This ticket only defines the reverse-proxy-specific terms. Cross-cutting terms — *project*, *service*, *host* — are defined once in [project-service-terminology.feature.md](project-service-terminology.feature.md) and are assumed here.
+This ticket only defines the reverse-proxy-specific terms. Cross-cutting terms — *project*, *service*, *host* — are defined once in [project-service-terminology.pattern.md](project-service-terminology.pattern.md) and are assumed here.
 
 | Term | Meaning |
 |---|---|

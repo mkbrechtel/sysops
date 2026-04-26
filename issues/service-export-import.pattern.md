@@ -4,6 +4,8 @@ status: draft
 
 # Service export / import streams
 
+> **Pattern.** Cross-cutting convention. The deliverable is a consolidated definition that lives in `docs/patterns/` once the ticket is closed; service roles implementing export/import endpoints and consumers (backup, restore, blue-green) reference this document.
+
 ## Goal
 
 Define a uniform **bidirectional** stream interface for services: produce a streaming export of their state (consumed by backup) and consume a streaming import of their state (produced by restore). Both directions share one contract, symmetric by design. Enables service-level backup and restore as a first-class level, alongside host-level and machine-level.
