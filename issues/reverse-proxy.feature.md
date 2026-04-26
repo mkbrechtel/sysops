@@ -1,64 +1,77 @@
 ---
-status: draft
+status: reviewed
 ---
 
 # Reverse proxy — web-service socket pattern
 
 ## Goal
 
-Define the collection's convention for how applications expose themselves to a reverse proxy: a unix-socket-based contract that decouples app roles from any specific RPX implementation. This ticket defines the *pattern*. The two implementations live in separate tickets:
+A single convention for how web application servers expose themselves to a reverse proxy on the same host: a unix-socket path. Nothing more. Apps publish a socket at a known path; whatever sits on the outside of that socket finds it by path, not by configuration handed in from the app side.
 
-- `reverse-proxy-traefik.feature.md` — Traefik backend.
-- `reverse-proxy-nginx.feature.md` — nginx backend.
+## Model diagram
 
-An application role only needs to follow this pattern to be servable by either backend, without knowing which is deployed.
+**Left = outside (client / browser), right = inside (the service).** A reverse proxy is to the right of the network and to the left of the service socket. Every box in the chain is composed of layered client/server roles that flip orientation at each boundary (the network, then the unix socket).
+
+Beyond plain proxying, the reverse proxy may apply additional access control on the way in — auth (basic, forward-auth, OIDC via an oauth2-proxy hop), rate limiting, IP allowlists, header inspection — before any traffic reaches the service socket. The service therefore cannot assume "any byte that arrives is from an authenticated user"; that is the deployer's call and lives in the RPX configuration, not in this pattern.
+
+The full data flow:
+
+```
+  Client {
+    App (e.g. Browser)
+      → HTTP Client
+        → TLS Client
+          → Transport Client (TCP/UDP)
+  }
+    → Network →
+  Reverse Proxy {
+    Transport Server (TCP/UDP)
+      → TLS Server
+        → HTTP Socket Client
+  }
+    → Socket in FS →
+  Service {
+    Socket Listener (HTTP)
+      → …
+  }
+```
+
+Left is the outside, right is the inside. Backend is handled right side, Frontend is executed left side (though assets providing is a backend service too).
+
+## Terminology
+
+This ticket only defines the reverse-proxy-specific terms. Cross-cutting terms — *project*, *service*, *host* — are defined once in [project-service-terminology.feature.md](project-service-terminology.feature.md) and are assumed here.
+
+| Term | Meaning |
+|---|---|
+| **Outside / Inside** | Direction labels. Outside = closer to the client. Inside = closer to the service. Used consistently throughout the pattern and implementation tickets. |
+| **Client** | The composite outside-end stack: app, HTTP client, TLS client, transport client. Lives outside the host. |
+| **Reverse proxy / "rpx" ** | The host-resident layer that terminates public-facing transport + TLS and re-emerges as an HTTP client toward a service socket. To the right of the network, to the left of the FS socket. |
+| **FS socket** | The unix socket file at `/run/web-services/<service>/http.sock`. The contract. The boundary between RPX and service is the filesystem, not the network. |
+| **Chain** | Multiple RPX-shaped layers stacked between client and service on the host (e.g. Caddy → oauth2-proxy → service). Each link is itself an outside/inside pair. |
+| **Frontend / Backend** | Where execution happens, not where code originates and not what shape the UI takes. Frontend = on the client side of the network — a browser, a native GUI, *a CLI talking to an API*, a script consuming an HTTP endpoint. Backend = on the host, serving the API and (often) the assets that frontends fetch. A bundle of frontend code served from the host is still backend-served; the same code, once running in the user's browser or shell, is the frontend. |
+
+## Implementations
+
+Default: [Caddy](reverse-proxy-caddy.feature.md).
+
+Alternates:
+
+- [Traefik](reverse-proxy-traefik.feature.md)
+- [nginx](reverse-proxy-nginx.feature.md)
+
+An app role only needs to follow this pattern to be servable by any of them.
 
 ## Scope
 
 ### The socket convention
 
-Every application that wants to be served via the reverse proxy puts an HTTP socket at:
-
 ```
 /run/web-services/<service>/http.sock
 ```
 
-The reverse proxy — whichever implementation — discovers the socket by this path convention and proxies HTTP traffic to it. No app knows or cares whether Traefik or nginx is on the other end; no RPX config needs to know the app's port or internals.
+That's it. One HTTP socket per service, at a known path.
 
-### What the pattern specifies
-
-- **Path**: `/run/web-services/<service>/http.sock`, where `<service>` is the service name (matches the project/service terminology ticket).
-- **Protocol on the socket**: plain HTTP (not HTTPS — TLS is the RPX's job).
-- **Ownership / perms**: the per-service directory is owned such that the app writes the socket and the RPX reads it. Exact group/ACL setup to be pinned down (open question).
-- **Vhost registration**: apps drop a fragment describing their vhost (name, optional auth, etc.) into a watched directory. The fragment schema is shared across backends so an app role is RPX-agnostic; each backend role translates the fragment into its native config.
-
-### What the pattern does not specify
-
-- TLS termination, ACME, redirects — those are per-backend concerns.
-- How the backend is configured internally.
-- What happens on the public side of the reverse proxy.
-
-### Containers
-
-Podman with `--network=none` plus a bind-mount of `/run/web-services/<service>/` into the container. The container writes its HTTP socket into that directory. No bridge network, no exposed ports, no localhost TCP. This is part of the pattern because the whole point is "no app-side TCP."
-
-## Design notes
-
-### Why a pattern ticket separate from implementations
-
-Two backends, one contract. Putting the contract in its own ticket makes it explicit that the contract is load-bearing and the backend choice is not. If we ever add a third backend (Caddy, HAProxy, …) it slots in under the same pattern without churning every app role. Splitting also keeps the implementation tickets focused on "how does Traefik/nginx find and proxy these sockets" rather than relitigating the contract.
-
-### Why plain HTTP on the socket
-
-TLS on the app side would duplicate work and move cert management into every app. TLS is a property of public ingress, not of the app; terminating at the RPX keeps it there.
-
-### Why a shared fragment schema for vhost registration
-
-So an app role does not have to know which backend is deployed. The app role writes a neutral fragment ("vhost foo.example.com, no auth, rate-limit N/s"); the deployed backend's role consumes fragments and emits its native config. Cost: one more translation layer. Benefit: one app role works with any backend.
-
-## Open questions
-
-- **Fragment schema detail.** A small neutral YAML schema covering vhost name, per-vhost auth (none / basic / forward), rate limiting, headers, redirects — what's the minimum that covers real cases without turning into "reimplement both backends' config languages"?
-- **Socket permissions.** Group-based (shared `web-services` group the RPX is in, sockets g+rw), ACL-based, or per-service user+RPX peer check? Group is simplest; ACLs are more explicit.
-- **Multiple sockets per service.** Does a service ever need more than one — e.g. a separate admin socket? If yes, `/run/web-services/<service>/<name>.sock`, and the fragment names which socket to proxy where. If no, keep it single.
-- **Non-HTTP protocols.** Websockets come free over the same HTTP socket. But gRPC, raw TCP, or HTTP/3 over QUIC don't. In scope for this pattern or punt to a separate ticket?
+- **Protocol on the socket**: plain HTTP. TLS is the outer layer's job.
+- **Ownership / perms**: directory `0750 <service-user>:web-services-socket-access`; socket `0660`. The shared `web-services-socket-access` system group is the access channel — any RPX (Caddy under its `caddy` user, nginx under `www-data`, Traefik under `traefik`, …) joins this group to read sockets, regardless of which user it normally runs as. A dedicated group rather than reusing `www-data` because each RPX has its own conventional user; the shared access channel is the group, not any one user.
+- **Containers**: podman with `--network=none` plus a bind-mount of `/run/web-services/<service>/`. The container writes its socket into that directory. No bridge network, no exposed ports, no localhost TCP.
