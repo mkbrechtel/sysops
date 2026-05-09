@@ -13,7 +13,7 @@ A single canonical definition of the collection's organizational concepts — *p
 ## Scope
 
 - Canonical text defining each term, its relationship to the others, and the conventional naming patterns (`<org>-infra`, `<org>-backup`, per-customer projects, etc.).
-- Lives under `docs/concepts/` on the documentation site (smalltown-devops.patterns.how), linkable from every role spec.
+- Lives under `docs/concepts/` in the repo (or the documentation site if and when one materialises), linkable from every role spec.
 - Glossary entry for each term with cross-references.
 - Worked example: a small-team infra with 2–3 projects, their hosts, their services, showing how backup, secrets, reverse-proxy, and monitoring all use the same vocabulary.
 

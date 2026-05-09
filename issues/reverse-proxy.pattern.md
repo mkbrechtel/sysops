@@ -47,7 +47,7 @@ This ticket only defines the reverse-proxy-specific terms. Cross-cutting terms �
 | **Outside / Inside** | Direction labels. Outside = closer to the client. Inside = closer to the service. Used consistently throughout the pattern and implementation tickets. |
 | **Client** | The composite outside-end stack: app, HTTP client, TLS client, transport client. Lives outside the host. |
 | **Reverse proxy / "rpx" ** | The host-resident layer that terminates public-facing transport + TLS and re-emerges as an HTTP client toward a service socket. To the right of the network, to the left of the FS socket. |
-| **FS socket** | The unix socket file at `/run/https/<service>/http.sock`. The contract. The boundary between RPX and service is the filesystem, not the network. |
+| **FS socket** | The unix socket file at `/run/https/<vhost>/http.sock`, where `<vhost>` is the fully-qualified hostname (e.g. `matrix.example.com`). The contract. The boundary between RPX and service is the filesystem, not the network. |
 | **Chain** | Multiple RPX-shaped layers stacked between client and service on the host (e.g. Caddy → oauth2-proxy → service). Each link is itself an outside/inside pair. |
 | **Frontend / Backend** | Where execution happens, not where code originates and not what shape the UI takes. Frontend = on the client side of the network — a browser, a native GUI, *a CLI talking to an API*, a script consuming an HTTP endpoint. Backend = on the host, serving the API and (often) the assets that frontends fetch. A bundle of frontend code served from the host is still backend-served; the same code, once running in the user's browser or shell, is the frontend. |
 
@@ -67,11 +67,13 @@ An app role only needs to follow this pattern to be servable by any of them.
 ### The socket convention
 
 ```
-/run/https/<service>/http.sock
+/run/https/<vhost>/http.sock
 ```
 
-That's it. One HTTP socket per service, at a known path.
+`<vhost>` is the fully-qualified hostname the service is reachable at — `matrix.example.com`, `element.example.com`, etc. **Not** the abstract service name from [project-service-terminology.pattern.md](project-service-terminology.pattern.md); the abstract service may be `matrix`, but the directory under `/run/https/` is always the FQDN. Using the FQDN aligns the path with how reverse proxies route (by Host header / SNI) and lets the dynamic-routing pattern (where the rpx substitutes `{host}` into the path) work without a separate naming convention.
+
+That's it. One HTTP socket per vhost, at a known path.
 
 - **Protocol on the socket**: plain HTTP. TLS is the outer layer's job.
 - **Ownership / perms**: directory `0750 <service-user>:https-socket-access`; socket `0660`. The shared `https-socket-access` system group is the access channel — any RPX (Caddy under its `caddy` user, nginx under `www-data`, Traefik under `traefik`, …) joins this group to read sockets, regardless of which user it normally runs as. A dedicated group rather than reusing `www-data` because each RPX has its own conventional user; the shared access channel is the group, not any one user.
-- **Containers**: podman with `--network=none` plus a bind-mount of `/run/https/<service>/`. The container writes its socket into that directory. No bridge network, no exposed ports, no localhost TCP.
+- **Containers**: podman with `--network=none` plus a bind-mount of `/run/https/<vhost>/`. The container writes its socket into that directory. No bridge network, no exposed ports, no localhost TCP.

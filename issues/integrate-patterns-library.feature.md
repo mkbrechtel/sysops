@@ -43,9 +43,9 @@ Two integration surfaces:
 - Integration is read-only from our side: we don't try to edit patterns
   from here. If a role's conventions become a new pattern, contribute
   upstream.
-- The docs site (smalltown-devops.patterns.how) and the patterns site
-  (patterns.how) live in the same Astro family; cross-linking should be
-  natural.
+- If/when this collection grows its own docs site, cross-link both ways
+  with the patterns site (patterns.how). Until then, role READMEs link
+  out to specific patterns by URL.
 - A "which patterns does this role embody?" field in role READMEs would
   tie the two together explicitly.
 
