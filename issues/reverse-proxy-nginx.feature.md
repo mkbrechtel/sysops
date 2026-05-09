@@ -6,7 +6,7 @@ status: draft
 
 ## Goal
 
-An nginx-based reverse proxy role that serves application sockets following the web-service socket pattern (see `reverse-proxy.pattern.md`). Sits on the outside of `/run/web-services/<service>/http.sock`, terminates TLS, handles ACME via a companion. Chosen per host for predictable, static vhost layouts where nginx's tuning surface and operational familiarity win.
+An nginx-based reverse proxy role that serves application sockets following the web-service socket pattern (see `reverse-proxy.pattern.md`). Sits on the outside of `/run/https/<service>/http.sock`, terminates TLS, handles ACME via a companion. Chosen per host for predictable, static vhost layouts where nginx's tuning surface and operational familiarity win.
 
 Directionality (matching the pattern ticket): **left = outside, right = inside**. nginx is to the right of the network and to the left of the app socket.
 
@@ -14,7 +14,7 @@ Directionality (matching the pattern ticket): **left = outside, right = inside**
 
 - Install and configure nginx as a systemd service.
 - Single HTTPS entrypoint; HTTP → HTTPS redirect by default.
-- **nginx configuration owned by the deployer** — vhost-to-socket mappings (`proxy_pass unix:/run/web-services/<service>/http.sock`), `auth_basic` / `auth_request`, `limit_req`, headers all live in the nginx role's inventory, not handed in by app roles.
+- **nginx configuration owned by the deployer** — vhost-to-socket mappings (`proxy_pass unix:/run/https/<service>/http.sock`), `auth_basic` / `auth_request`, `limit_req`, headers all live in the nginx role's inventory, not handed in by app roles.
 - **ACME** via a companion (certbot or lego) with nginx reload on renewal. HTTP-01 by default; DNS-01 when the host declares DNS API credentials via the secrets role.
 
 ## Design notes

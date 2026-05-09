@@ -6,7 +6,7 @@ status: draft
 
 ## Goal
 
-A Caddy-based reverse proxy role that serves application sockets following the [web-service socket pattern](reverse-proxy.pattern.md). Terminates HTTPS/TLS, handles ACME, connects to web-service sockets at `/run/web-services/<key>/http.sock`. Default reverse-proxy implementation in the collection.
+A Caddy-based reverse proxy role that serves application sockets following the [web-service socket pattern](reverse-proxy.pattern.md). Terminates HTTPS/TLS, handles ACME, connects to web-service sockets at `/run/https/<key>/http.sock`. Default reverse-proxy implementation in the collection.
 
 **Default mode: HTTP-01 with the Debian-packaged Caddy.** Per-host certs, no extra infrastructure, the stock `caddy` binary from `apt`. Each vhost is a static block in its own file under `/etc/caddy/conf.d/<service>` (see Configuration layout). This is what the role installs unless told otherwise.
 
@@ -83,7 +83,7 @@ Trivial per-host vhosts are a one-liner:
 ```caddy
 # /etc/caddy/conf.d/element
 element.example.com {
-    reverse_proxy unix//run/web-services/element.example.com/http.sock
+    reverse_proxy unix//run/https/element.example.com/http.sock
 }
 ```
 
@@ -93,7 +93,7 @@ The wildcard file (when DNS-01 + a wildcard cert are in play) is shaped around e
 
 ### conf.d/ is general — the socket pattern is one shape among many
 
-The drop-in directory accepts any valid Caddyfile fragment. The shapes documented above (per-host vhost reverse-proxying to a `/run/web-services/<service>/http.sock`, wildcard block with host-var validator) are the **conventional shapes** the rest of the collection expects, not the only legal ones. A deployer can also drop in:
+The drop-in directory accepts any valid Caddyfile fragment. The shapes documented above (per-host vhost reverse-proxying to a `/run/https/<service>/http.sock`, wildcard block with host-var validator) are the **conventional shapes** the rest of the collection expects, not the only legal ones. A deployer can also drop in:
 
 - A vhost that proxies to a TCP backend (`reverse_proxy localhost:8080`) — for legacy services that don't fit the socket pattern, or services on a different host.
 - A static-file vhost (`root *` + `file_server`) for serving documents directly from disk without an app socket.
@@ -142,7 +142,7 @@ A wildcard cert unlocks an optional zero-config-add pattern. **Optional, not req
 *.example.com {
     @valid_host header_regexp Host ^[a-z0-9][a-z0-9-]{0,63}\.example\.com$
     handle @valid_host {
-        reverse_proxy unix//run/web-services/{host}/http.sock
+        reverse_proxy unix//run/https/{host}/http.sock
     }
     respond 404
 }
@@ -150,7 +150,7 @@ A wildcard cert unlocks an optional zero-config-add pattern. **Optional, not req
 
 The `@valid_host` matcher whitelists the Host header against a regex of acceptable subdomain shapes for this zone. Subdomain label is capped at 64 characters (`{0,63}` quantifier after the mandatory leading char) — well within DNS limits and short enough to keep the resulting filesystem path bounded. Anything that does not match — path traversal attempts, malformed hostnames, hosts in a different zone, hostile-length labels — falls through to the explicit `respond 404`. The reverse_proxy directive only fires when the host is known-good.
 
-A new service is deployed by writing its socket at `/run/web-services/<fqdn>/http.sock` and having DNS resolve `<fqdn>` to the host. Zero Caddy config changes, zero reloads. The directory name in this mode is the fully-qualified vhost (because that is what the `{host}` placeholder resolves to), not the service name; per-vhost static blocks may use either name.
+A new service is deployed by writing its socket at `/run/https/<fqdn>/http.sock` and having DNS resolve `<fqdn>` to the host. Zero Caddy config changes, zero reloads. The directory name in this mode is the fully-qualified vhost (because that is what the `{host}` placeholder resolves to), not the service name; per-vhost static blocks may use either name.
 
 When to use which:
 
@@ -163,7 +163,7 @@ Yes, under wildcard cert + HTTPS, with the explicit validator pattern above. Fou
 
 1. **TLS / SNI validation.** A TLS handshake requires the SNI to match the wildcard cert's pattern. SNI `../etc` is not a valid hostname and won't match the cert; the connection is refused before HTTP is even spoken.
 2. **Go's HTTP host header validation.** Go's `net/http` server (which Caddy uses) rejects Host headers containing `/` or `..` path components as malformed (400 Bad Request). This catches anything that gets past TLS.
-3. **Caddy's `{host}` sanitization.** Even in a SNI/Host mismatch (valid TLS for one hostname, attacker-supplied Host header on the request), Caddy resolves `{host}` to an empty string when traversal characters are present. Without further validation, the resulting socket path would become `/run/web-services//http.sock` — a non-existent file, the connection fails harmlessly with 502.
+3. **Caddy's `{host}` sanitization.** Even in a SNI/Host mismatch (valid TLS for one hostname, attacker-supplied Host header on the request), Caddy resolves `{host}` to an empty string when traversal characters are present. Without further validation, the resulting socket path would become `/run/https//http.sock` — a non-existent file, the connection fails harmlessly with 502.
 4. **The `@valid_host` regex matcher.** The wildcard block does not blindly substitute `{host}` into the path; it gates the reverse_proxy directive behind an explicit regex match against expected subdomain shapes for the zone, including a 64-character cap on the subdomain label. Anything that doesn't match (traversal, malformed names, oversized labels, foreign zones) falls through to `respond 404`. This is the explicit defense; layers 1–3 are belt-and-braces.
 
 The one passing case — clean hostname mismatch (Host: `evil.example.com` with SNI `hello.example.com`) — passes the regex if `evil.example.com` matches the zone pattern, and resolves `{host}` to `evil.example.com`. The only socket reachable that way is one the deployer actually deployed for that hostname; an attacker with DNS pointing at the host could reach it anyway.
@@ -213,5 +213,5 @@ Sites that adopt the `*.<zone>` wildcard pattern can collapse "add a service" to
 ## Open questions
 
 - **DNS-provider credential rotation.** Whatever credential the chosen DNS plugin uses (TSIG key for `rfc2136`, API token for commercial providers) needs a rotation story: secrets-role rotation on the Caddy side plus the matching update on the DNS side. Single-host case is straightforward via the secrets role's existing rotation hooks; multi-Caddy-sharing-a-zone is harder and not in scope here.
-- **Path naming under dynamic routing.** The pattern ticket says `/run/web-services/<service>/http.sock` with `<service>` being the project-service-terminology name. Dynamic routing makes the directory name the vhost FQDN (because `{host}` resolves to that). For sites that mix static per-service vhosts and the dynamic catch-all, both naming conventions need to coexist — service-named dirs from static blocks, FQDN-named dirs from the dynamic catch-all. Worth a one-line note in the pattern ticket; not blocking.
+- **Path naming under dynamic routing.** The pattern ticket says `/run/https/<service>/http.sock` with `<service>` being the project-service-terminology name. Dynamic routing makes the directory name the vhost FQDN (because `{host}` resolves to that). For sites that mix static per-service vhosts and the dynamic catch-all, both naming conventions need to coexist — service-named dirs from static blocks, FQDN-named dirs from the dynamic catch-all. Worth a one-line note in the pattern ticket; not blocking.
 - **Per-host wildcard scope.** Wildcard certs are per-zone. A site with services scattered across multiple zones (`*.foo.com` + `*.bar.org`) needs separate wildcards. Trivial in Caddy, but worth documenting that the dynamic routing block is per-zone.

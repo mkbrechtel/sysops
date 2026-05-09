@@ -47,7 +47,7 @@ This ticket only defines the reverse-proxy-specific terms. Cross-cutting terms �
 | **Outside / Inside** | Direction labels. Outside = closer to the client. Inside = closer to the service. Used consistently throughout the pattern and implementation tickets. |
 | **Client** | The composite outside-end stack: app, HTTP client, TLS client, transport client. Lives outside the host. |
 | **Reverse proxy / "rpx" ** | The host-resident layer that terminates public-facing transport + TLS and re-emerges as an HTTP client toward a service socket. To the right of the network, to the left of the FS socket. |
-| **FS socket** | The unix socket file at `/run/web-services/<service>/http.sock`. The contract. The boundary between RPX and service is the filesystem, not the network. |
+| **FS socket** | The unix socket file at `/run/https/<service>/http.sock`. The contract. The boundary between RPX and service is the filesystem, not the network. |
 | **Chain** | Multiple RPX-shaped layers stacked between client and service on the host (e.g. Caddy → oauth2-proxy → service). Each link is itself an outside/inside pair. |
 | **Frontend / Backend** | Where execution happens, not where code originates and not what shape the UI takes. Frontend = on the client side of the network — a browser, a native GUI, *a CLI talking to an API*, a script consuming an HTTP endpoint. Backend = on the host, serving the API and (often) the assets that frontends fetch. A bundle of frontend code served from the host is still backend-served; the same code, once running in the user's browser or shell, is the frontend. |
 
@@ -67,11 +67,11 @@ An app role only needs to follow this pattern to be servable by any of them.
 ### The socket convention
 
 ```
-/run/web-services/<service>/http.sock
+/run/https/<service>/http.sock
 ```
 
 That's it. One HTTP socket per service, at a known path.
 
 - **Protocol on the socket**: plain HTTP. TLS is the outer layer's job.
-- **Ownership / perms**: directory `0750 <service-user>:web-services-socket-access`; socket `0660`. The shared `web-services-socket-access` system group is the access channel — any RPX (Caddy under its `caddy` user, nginx under `www-data`, Traefik under `traefik`, …) joins this group to read sockets, regardless of which user it normally runs as. A dedicated group rather than reusing `www-data` because each RPX has its own conventional user; the shared access channel is the group, not any one user.
-- **Containers**: podman with `--network=none` plus a bind-mount of `/run/web-services/<service>/`. The container writes its socket into that directory. No bridge network, no exposed ports, no localhost TCP.
+- **Ownership / perms**: directory `0750 <service-user>:https-socket-access`; socket `0660`. The shared `https-socket-access` system group is the access channel — any RPX (Caddy under its `caddy` user, nginx under `www-data`, Traefik under `traefik`, …) joins this group to read sockets, regardless of which user it normally runs as. A dedicated group rather than reusing `www-data` because each RPX has its own conventional user; the shared access channel is the group, not any one user.
+- **Containers**: podman with `--network=none` plus a bind-mount of `/run/https/<service>/`. The container writes its socket into that directory. No bridge network, no exposed ports, no localhost TCP.

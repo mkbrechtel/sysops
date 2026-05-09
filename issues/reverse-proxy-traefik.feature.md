@@ -6,7 +6,7 @@ status: draft
 
 ## Goal
 
-A Traefik-based reverse proxy role that serves application sockets following the web-service socket pattern (see `reverse-proxy.pattern.md`). Sits on the outside of `/run/web-services/<service>/http.sock`, terminates TLS, handles ACME. Chosen per host for dynamic / container-heavy workloads where Traefik's provider model shines.
+A Traefik-based reverse proxy role that serves application sockets following the web-service socket pattern (see `reverse-proxy.pattern.md`). Sits on the outside of `/run/https/<service>/http.sock`, terminates TLS, handles ACME. Chosen per host for dynamic / container-heavy workloads where Traefik's provider model shines.
 
 Directionality (matching the pattern ticket): **left = outside, right = inside**. Traefik is to the right of the network and to the left of the app socket.
 
