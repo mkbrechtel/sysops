@@ -1,7 +1,7 @@
 <!--
 SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 
-SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-License-Identifier: EUPL-1.2
 -->
 
 # Common Role
@@ -54,4 +54,4 @@ None.
 
 ## License
 
-AGPL-3.0-or-later
+EUPL-1.2

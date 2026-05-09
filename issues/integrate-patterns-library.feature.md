@@ -29,7 +29,7 @@ One repo, one project. **Cute DevOps Patterns!** is the human-facing name; Galax
 
 ### Central files live at repo root
 
-`README.md`, `CONTRIBUTIONS.md`, `LICENSE` (or `LICENSES/`), `CLAUDE.md`, `CODING.md`, `RELEASE.md`, `GLOBAL.md`, `REUSE.toml`, `galaxy.yml`, plus **`go.mod` / `go.sum`** all live at the repo root and apply to the unified project. The patterns subtree brought in its own `patterns/README.md` / `patterns/CONTRIBUTIONS.md` / `patterns/LICENSE` / `patterns/CLAUDE.md` / `patterns/go.mod` / `patterns/go.sum` — those merge upward into root-level files (credits combined in `CONTRIBUTIONS.md`, README rewritten to introduce the unified project, AGPL-3.0-or-later already aligns, Go module unified — see below). After migration there are no duplicate central files inside `patterns/` or `website/`.
+`README.md`, `CONTRIBUTIONS.md`, `LICENSE` (or `LICENSES/`), `CLAUDE.md`, `CODING.md`, `RELEASE.md`, `GLOBAL.md`, `REUSE.toml`, `galaxy.yml`, plus **`go.mod` / `go.sum`** all live at the repo root and apply to the unified project. The patterns subtree brought in its own `patterns/README.md` / `patterns/CONTRIBUTIONS.md` / `patterns/LICENSE` / `patterns/CLAUDE.md` / `patterns/go.mod` / `patterns/go.sum` — those merge upward into root-level files (credits combined in `CONTRIBUTIONS.md`, README rewritten to introduce the unified project, EUPL-1.2 already aligns, Go module unified — see below). After migration there are no duplicate central files inside `patterns/` or `website/`.
 
 ### One Go module at the root
 
@@ -91,7 +91,7 @@ website/
    - `git mv` the Astro and Go-source files from `patterns/` → `website/` (`main.go`, `embed.go`, `astro.config.mjs`, `package.json`, `package-lock.json`, `tsconfig.json`, `src/`, `public/`, `CNAME`, `redeploy`).
    - `git mv patterns/go.mod` and `patterns/go.sum` to the **repo root** — one Go module for the whole project, not a per-directory module.
    - Flatten `patterns/docs/<category>/` → `patterns/<category>/`.
-   - Merge central files upward to the repo root: combine `patterns/CONTRIBUTIONS.md` into the root `CONTRIBUTIONS.md` (preserving credits), fold relevant content from `patterns/README.md` and `patterns/CLAUDE.md` into the root README and CLAUDE.md, drop the duplicate `patterns/LICENSE` (root LICENSES/ already covers AGPL-3.0-or-later).
+   - Merge central files upward to the repo root: combine `patterns/CONTRIBUTIONS.md` into the root `CONTRIBUTIONS.md` (preserving credits), fold relevant content from `patterns/README.md` and `patterns/CLAUDE.md` into the root README and CLAUDE.md, drop the duplicate `patterns/LICENSE` (root LICENSES/ already covers EUPL-1.2).
    - Update the Go module path and import paths to match the new module identity (e.g. `github.com/mkbrechtel/devops`).
    - Update internal links in pattern markdown files (any `./docs/...` or relative paths inside the subtree, plus any references to the moved central files).
 3. **Update `website/CNAME`** to `devops.patterns.how`.
@@ -121,7 +121,7 @@ A new `patterns` role copies `patterns/` to `/usr/local/share/patterns/` on mana
 
 ### License
 
-Both repos ship AGPL-3.0-or-later; merging is straightforward — the root `LICENSES/` directory already covers it, and the duplicate `patterns/LICENSE` from the subtree gets dropped. Contributor credits from `patterns/CONTRIBUTIONS.md` get folded into the root `CONTRIBUTIONS.md` verbatim.
+Both repos ship EUPL-1.2; merging is straightforward — the root `LICENSES/` directory already covers it, and the duplicate `patterns/LICENSE` from the subtree gets dropped. Contributor credits from `patterns/CONTRIBUTIONS.md` get folded into the root `CONTRIBUTIONS.md` verbatim.
 
 ## Design notes
 

@@ -47,10 +47,11 @@ syntax for the file format. Two reasonable approaches:
   `CNAME`. Annotate by glob (e.g. `patterns/**/*.md`,
   `issues/**/*.md`).
 
-Pattern markdown originated from the upstream patterns repo (also
-AGPL-3.0-or-later — see CONTRIBUTIONS.md acknowledgement of IDMKD); the
-same SPDX-License-Identifier applies. Copyright dates on patterns
-content should reflect the upstream history, roughly 2023–2026.
+Pattern markdown originated from the upstream patterns repo (which
+shipped AGPL-3.0-or-later); after the project-wide relicense to EUPL-1.2
+(see CHANGELOG), the same `SPDX-License-Identifier: EUPL-1.2` should be
+applied here. Copyright dates on patterns content should reflect the
+upstream history, roughly 2023–2026.
 
 ## Acceptance
 

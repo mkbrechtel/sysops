@@ -1,7 +1,7 @@
 #!/usr/bin/env -S ansible-playbook -i environments/test-in-vms/
 # SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 #
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: EUPL-1.2
 
 ---
 - name: Test devops collection roles

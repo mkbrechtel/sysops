@@ -1,7 +1,7 @@
 <!--
 SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 
-SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-License-Identifier: EUPL-1.2
 -->
 
 # Changelog
@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Relicensed from AGPL-3.0-or-later to EUPL-1.2
+- Renamed collection from `mkbrechtel.sysops` to `mkbrechtel.devops`;
+  merged the upstream Cute Patterns! library into `patterns/` and the
+  Astro/Go site machinery into `website/`
 - Rename roles for consistent naming scheme:
   - Setup roles: `checker` -> `setup_check`, `deploy_deploy` -> `setup_deploy`, new `setup_notify`
   - Check instance roles: `checker_check` -> `check`, `checker_check_disk` -> `check_disk`,
