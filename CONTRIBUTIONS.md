@@ -19,6 +19,13 @@ SPDX-License-Identifier: EUPL-1.2
   EUPL-1.2 (see [License](#license) below), pending coordination with
   Philipp on relicensing.
 
+- **Janne Mareike Koschinski** (2017) — Author of
+  [powerline-go](https://github.com/justjanne/powerline-go), from which
+  the shell-prompt integration snippets bundled in `bash_shell`,
+  `zsh_shell`, and `fish_shell` derive. Those files stay under
+  `GPL-3.0-only` (powerline-go's license) and are not part of the
+  EUPL-1.2 relicense.
+
 ## License
 
 Most of the project is licensed under EUPL-1.2. The `restic_client` and
