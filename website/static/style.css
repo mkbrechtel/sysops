@@ -156,6 +156,8 @@ a:hover {
   bottom: 0;
   width: var(--sidebar-w);
   overflow-y: auto;
+  /* Keep scroll inside the rail/drawer; don't chain to the page. */
+  overscroll-behavior: contain;
   padding: var(--pad);
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
@@ -350,7 +352,10 @@ a:hover {
     transform: rotate(-45deg);
   }
 
-  /* Lock body scroll while the drawer is open (modern :has support). */
+  /* Lock page scroll while the drawer is open. Both html and body
+     are pinned so the underlying content stays put even on mobile
+     browsers that elastic-scroll either element. */
+  html:has(.sidebar-toggle:checked),
   body:has(.sidebar-toggle:checked) {
     overflow: hidden;
   }
