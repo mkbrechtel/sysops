@@ -75,9 +75,9 @@ placeholders before invoking this template:
 <label for="switcher-toggle" class="switcher-backdrop" aria-hidden="true"></label>
 <ul class="switcher-menu" role="menu">
   <li><a href="/patterns"      [[ if eq $sectionLabel "Patterns!"      ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f537.svg" alt="">Patterns!</a></li>
-  <li><a href="/anti-patterns" [[ if eq $sectionLabel "Anti-Patterns!" ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f53b.svg" alt="">Anti-Patterns!</a></li>
   <li><a href="/roles"         [[ if eq $sectionLabel "Deploy!"        ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f680.svg" alt="">Deploy!</a></li>
   <li><a href="/dev"           [[ if eq $sectionLabel "Coding!"        ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f4bb.svg" alt="">Coding!</a></li>
+  <li><a href="/anti-patterns" [[ if eq $sectionLabel "Anti-Patterns!" ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f53b.svg" alt="">Anti-Patterns!</a></li>
 </ul>
 
 <div class="layout">
@@ -95,11 +95,6 @@ placeholders before invoking this template:
         <strong>Patterns!</strong>
         <span>Cute, helpful patterns for getting work done.</span>
       </a>
-      <a href="/anti-patterns" class="home-tile">
-        <img src="/static/emoji_u1f53b.svg" alt="">
-        <strong>Anti-Patterns!</strong>
-        <span>Industry patterns that aren't cute.</span>
-      </a>
       <a href="/roles" class="home-tile">
         <img src="/static/emoji_u1f680.svg" alt="">
         <strong>Deploy!</strong>
@@ -109,6 +104,11 @@ placeholders before invoking this template:
         <img src="/static/emoji_u1f4bb.svg" alt="">
         <strong>Coding!</strong>
         <span>Working on the collection itself.</span>
+      </a>
+      <a href="/anti-patterns" class="home-tile">
+        <img src="/static/emoji_u1f53b.svg" alt="">
+        <strong>Anti-Patterns!</strong>
+        <span>Industry patterns that aren't cute.</span>
       </a>
     </nav>
     [[- end ]]
