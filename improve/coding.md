@@ -96,6 +96,17 @@ Before submitting changes, run the following checks in order:
 
 All three checks must pass before changes are considered ready.
 
+### Pre-commit hook
+
+`.githooks/pre-commit` runs `ansible-lint` and `reuse lint` against a
+temporary checkout of the staged tree (via `git checkout-index`), so the
+linters see exactly what would be committed regardless of unstaged
+changes in the working tree. Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Testing
 
 - Test roles on all supported platforms (Debian bookworm/bullseye, Ubuntu jammy/focal)
