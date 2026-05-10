@@ -4,127 +4,78 @@ SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.br
 SPDX-License-Identifier: EUPL-1.2
 -->
 
-# Cute DevOps! — `mkbrechtel.devops`
+# Cute DevOps! 🦄
 
-The ***Cute DevOps!*** project provides a collection of patterns
-and their implementations in form of Ansible roles. The repo ships as the
-Ansible collection `mkbrechtel.devops` and renders to the website at
-[devops.patterns.how](https://devops.patterns.how). Heads up — this
-library is pretty opinionated; we're working on a comments section so
-you can drop in and tell us where we're wrong.
+The ***Cute DevOps!*** project is a small, opinionated knowledge base
+about running computers — patterns we like, the patterns we *don't*,
+and the Ansible roles we use to ship the ones we do. Heads up: this
+library is pretty opinionated; we're working on a comments section
+so you can drop in and tell us where we're wrong.
 
-**⚠️ Development Phase Notice**
-*This collection is currently in development (version 0.x.x). Breaking changes
-may occur in any release until we reach version 1.0.0. APIs, role interfaces,
-and variable names are subject to change.*
+The repository ships as the Ansible collection `mkbrechtel.devops`
+and renders to the website at
+[devops.devio.mkbrechtel.dev](https://devops.devio.mkbrechtel.dev).
 
-## Repository layout
+## Patterns! 🔷
 
-```
-mkbrechtel/devops/
-├── patterns/   ← markdown patterns (the *what / why*)
-├── roles/      ← Ansible roles (the *how* — pattern implementations)
-├── website/    ← Astro + Go site, deployed to devops.patterns.how
-├── playbooks/
-├── docs/       ← contributor / collection-level docs
-├── issues/     ← planning surface (.feature.md / .pattern.md / .bug.md)
-└── …
-```
+Cute, helpful patterns for getting work done — operational habits,
+deployment shapes, and thinking tools. Patterns are organized by
+*approach* (e.g. Smalltown Infrastructure), *operation* (deployment,
+backup, monitoring), *development* (frontend), and *meta* (how to
+write a pattern, why "cuteness" matters).
 
-`patterns/` and `roles/` cross-reference each other with editorial,
-documentation-level links — a role README's "Patterns" section names the
-patterns it implements, and a pattern's "Possible implementations" section
-names roles that implement it. The relationship is many-to-many.
+→ Browse the library at
+[/patterns](https://devops.devio.mkbrechtel.dev/patterns).
 
-## Installation
+## Anti-Patterns! 🔻
+
+Critiques of industry patterns that aren't cute: practices that
+look reasonable on the surface but produce friction, opaque
+systems, or unhappy operators in the long run. Each entry names
+what it is, why it's tempting, and what to do instead — usually a
+pointer back to the [Patterns!](#patterns-) library.
+
+→ See
+[/anti-patterns](https://devops.devio.mkbrechtel.dev/anti-patterns).
+
+## Deploy! 🚀
+
+The Ansible roles that implement the patterns. Each role has a
+README documenting variables, examples, and the patterns it ships.
+The website's *Deploy!* sidebar groups them by purpose
+(Orchestrators, System, Shells, Containers, Backup, Monitoring,
+Deployment, Tooling).
 
 ```bash
 ansible-galaxy collection install mkbrechtel.devops
 ```
 
-## Requirements
+Requirements: Ansible ≥ 2.14.3 on Debian 13 (trixie).
 
-- Ansible >= 2.14.3
-- Debian 12/bookworm or 13/trixie
+→ Browse role documentation at
+[/roles](https://devops.devio.mkbrechtel.dev/roles).
 
-## Included Roles
+## Coding! 💻
 
-- **ansible**: Ansible configuration and tools setup
-- **common**: Base system configuration orchestrator (includes all roles below)
-- **debian_apt_sources**: Debian APT sources configuration (deb822 format)
-- **tools**: Base tools and common packages
-- **storage**: Storage and filesystem tools
-- **firmware**: CPU and device firmware packages
-- **root_user**: Root user account configuration
-- **ssh_agent**: SSH and GPG agent systemd user service setup
-- **hostname**: Hostname and /etc/hosts configuration
-- **locales**: System locale generation and configuration
-- **timezone**: System timezone configuration
-- **keyboard**: Keyboard layout configuration
-- **resolvconf**: Resolvconf DNS configuration
-- **sysctl_tweaks**: System sysctl performance tweaks
-- **microcode**: CPU microcode updates
-- **bash_shell**: Bash shell configuration
-- **fish_shell**: Fish shell installation and configuration
-- **zsh_shell**: Zsh shell configuration
-- **updates**: System updates management
-- **users**: User account management with home directory configuration
-- **podman**: Podman container runtime with DNS support
-- **managed**: High-level orchestrator for a fully managed system
-- **setup_check**: Checker monitoring framework setup
-- **setup_deploy**: Deployment infrastructure setup
-- **setup_notify**: Unified notification setup
-- **check**: Base check instance role
-- **check_disk**: Disk space check
-- **check_ram**: RAM/memory check
-- **check_ping**: Network connectivity check
-- **check_systemd**: Systemd service health check
-- **notify_alerta**: Alerta notification integration
-- **notify_email**: Email notification integration
-- **deploy**: Base deploy instance role
-- **deploy_ansible_play**: Ansible playbook deployment
-- **deploy_ansible_pull**: Ansible pull deployment
-- **test_deploy_ohai**: Test deployment (success)
-- **test_deploy_fail**: Test deployment (failure)
-- **triggered_by_git_hook**: Git hook trigger for deployments
+Documentation for working on the collection itself: coding
+conventions, contribution flow, the release process, and the
+project's planning surface (`issues/*.feature.md`,
+`issues/*.pattern.md`, `issues/*.bug.md`).
 
-## Usage
-
-### Base System Setup
-
-```yaml
-- hosts: servers
-  become: yes
-  roles:
-    - mkbrechtel.devops.common
-    - mkbrechtel.devops.users
-    - mkbrechtel.devops.podman
-```
-
-### User Management
-
-```yaml
-- hosts: servers
-  become: yes
-  roles:
-    - role: mkbrechtel.devops.users
-      vars:
-        users:
-          - name: alice
-            groups: ['sudo', 'docker']
-            shell: /bin/bash
-```
+→ See [/dev](https://devops.devio.mkbrechtel.dev/dev).
 
 ## License
 
-EUPL-1.2, with the following exceptions (per-file `SPDX-License-Identifier`
-headers are authoritative):
+EUPL-1.2 by default. Per-file `SPDX-License-Identifier` headers are
+authoritative; the carve-outs are:
 
-- `roles/restic_client/`, `roles/restic_server/` — AGPL-3.0-or-later
-  (carve-out for a co-author's contributions; see `CONTRIBUTIONS.md`).
+- `roles/restic_client/` and `roles/restic_server/` —
+  AGPL-3.0-or-later (carve-out for a co-author's contributions; see
+  `CONTRIBUTIONS.md`).
 - Third-party powerline-go integration snippets
   (`roles/bash_shell/files/powerline-go.sh`,
   `roles/zsh_shell/files/powerline-go.zsh`,
-  `roles/fish_shell/files/global/fish_prompt.fish`) — GPL-3.0-only.
-- Google Noto Emoji glyph used as logo / favicon
-  (`website/static/unicorn.svg`) — Apache-2.0.
+  `roles/fish_shell/files/global/fish_prompt.fish`) —
+  GPL-3.0-only.
+- Google Noto Emoji glyphs used as section icons / favicon
+  (`website/static/*.svg`) — Apache-2.0.

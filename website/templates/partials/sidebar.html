@@ -20,6 +20,7 @@ so the sidebar only renders the listing for the current section.
 [[- end -]]
 
 [[- if eq $section "patterns" ]]
+  [[ include "/templates/partials/sidebar-section.html" "Approaches" "/content/patterns/approaches" "/patterns/approaches" ]]
   [[ include "/templates/partials/sidebar-section.html" "Development / Frontend" "/content/patterns/development/frontend" "/patterns/development/frontend" ]]
   [[ include "/templates/partials/sidebar-section.html" "Operation / Deployment" "/content/patterns/operation/deployment" "/patterns/operation/deployment" ]]
   [[ include "/templates/partials/sidebar-section.html" "Meta" "/content/patterns/meta" "/patterns/meta" ]]
