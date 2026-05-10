@@ -18,17 +18,20 @@ placeholders before invoking this template:
 [[- $title := $page.Meta.title -]]
 [[- if not $hasTitle -]][[- $title = "Cute DevOps!" -]][[- end -]]
 
-[[- /* Detect the current top-level section from the URL so the
-       header (and the sidebar) can highlight it. Caddy 2.6 templates
-       have no hasPrefix; we use printf with a precision specifier. */ -]]
+[[- /* Detect the current top-level section from the URL.
+       Caddy 2.6 templates have no hasPrefix; we use printf with a
+       precision specifier to take the first N chars and compare. */ -]]
 [[- $current := .OriginalReq.URL.Path -]]
 [[- $sectionLabel := "" -]]
+[[- $sectionIcon  := "" -]]
 [[- if or (eq $current "/patterns") (eq (printf "%.10s" $current) "/patterns/") -]]
-  [[- $sectionLabel = "Patterns!" -]]
+  [[- $sectionLabel = "Patterns!" -]][[- $sectionIcon = "/static/emoji_u1f537.svg" -]]
+[[- else if or (eq $current "/anti-patterns") (eq (printf "%.15s" $current) "/anti-patterns/") -]]
+  [[- $sectionLabel = "Anti-Patterns!" -]][[- $sectionIcon = "/static/red-diamond.svg" -]]
 [[- else if or (eq $current "/roles") (eq (printf "%.7s" $current) "/roles/") -]]
-  [[- $sectionLabel = "Deploy!" -]]
+  [[- $sectionLabel = "Deploy!" -]][[- $sectionIcon = "/static/emoji_u1f680.svg" -]]
 [[- else if or (eq $current "/dev") (eq (printf "%.5s" $current) "/dev/") -]]
-  [[- $sectionLabel = "Coding!" -]]
+  [[- $sectionLabel = "Coding!" -]][[- $sectionIcon = "/static/emoji_u1f4bb.svg" -]]
 [[- end -]]
 <!doctype html>
 <html lang="en">
@@ -40,20 +43,38 @@ placeholders before invoking this template:
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-[[- /* CSS-only sidebar drawer: hidden checkbox + sibling selectors. */ -]]
-<input type="checkbox" id="sidebar-toggle" class="sidebar-toggle" hidden>
+[[- /* Two CSS-only checkbox toggles drive the off-canvas sidebar
+      drawer (mobile) and the section-switcher dropdown (header). */ -]]
+<input type="checkbox" id="sidebar-toggle"   class="sidebar-toggle"   hidden>
+<input type="checkbox" id="switcher-toggle"  class="switcher-toggle"  hidden>
+
 <header class="site-header">
-  <a class="site-title" href="/">
+  <a class="site-title" href="/" aria-label="Cute DevOps! — home">
     <img src="/static/unicorn.svg" alt="">
-    <span>Cute DevOps!</span>
   </a>
+
   [[- if ne $sectionLabel "" ]]
-  <span class="header-section">[[ $sectionLabel ]]</span>
+  <label for="switcher-toggle" class="header-section" role="button" aria-haspopup="menu" tabindex="0">
+    <img src="[[ $sectionIcon ]]" alt="">
+    <span>[[ $sectionLabel ]]</span>
+    <span class="caret" aria-hidden="true">▾</span>
+  </label>
   [[- end ]]
+
   <label for="sidebar-toggle" class="hamburger" role="button" aria-label="Open navigation" tabindex="0">
     <span></span><span></span><span></span>
   </label>
 </header>
+
+[[- /* Switcher dropdown + backdrop. Both are siblings of the toggle
+      checkbox so the `~` selector can flip them on. */ -]]
+<label for="switcher-toggle" class="switcher-backdrop" aria-hidden="true"></label>
+<ul class="switcher-menu" role="menu">
+  <li><a href="/patterns"      [[ if eq $sectionLabel "Patterns!"      ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f537.svg" alt="">Patterns!</a></li>
+  <li><a href="/anti-patterns" [[ if eq $sectionLabel "Anti-Patterns!" ]] class="active" aria-current="page"[[ end ]]><img src="/static/red-diamond.svg" alt="">Anti-Patterns!</a></li>
+  <li><a href="/roles"         [[ if eq $sectionLabel "Deploy!"        ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f680.svg" alt="">Deploy!</a></li>
+  <li><a href="/dev"           [[ if eq $sectionLabel "Coding!"        ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f4bb.svg" alt="">Coding!</a></li>
+</ul>
 
 <div class="layout">
   <aside class="sidebar" aria-label="Site navigation">

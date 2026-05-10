@@ -2,43 +2,30 @@
 SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 SPDX-License-Identifier: EUPL-1.2
 
-Site navigation. The website has three top-level sections:
-  • Patterns   — the patterns library  (/patterns)
-  • Roles      — Ansible role docs     (/roles)
-  • Dev        — collection developer docs (/dev)
-
-The always-visible link bar at the top switches between them. Below
-that we render only the listing for the current section, with the
-section name as the sidebar's main header.
+Site navigation. Section switching now lives in the header dropdown,
+so the sidebar only renders the listing for the current section.
 */ -]]
 [[- $current := .OriginalReq.URL.Path -]]
 
-[[- /* Detect the current top-level section from the URL.
-       Caddy 2.6 templates have no hasPrefix, so we use printf with
-       a precision specifier to take the first N characters and
-       compare. The exact match (no trailing slash) is checked too. */ -]]
+[[- /* Detect the current top-level section. */ -]]
 [[- $section := "" -]]
 [[- if or (eq $current "/patterns") (eq (printf "%.10s" $current) "/patterns/") -]]
   [[- $section = "patterns" -]]
+[[- else if or (eq $current "/anti-patterns") (eq (printf "%.15s" $current) "/anti-patterns/") -]]
+  [[- $section = "anti-patterns" -]]
 [[- else if or (eq $current "/roles") (eq (printf "%.7s" $current) "/roles/") -]]
   [[- $section = "roles" -]]
 [[- else if or (eq $current "/dev") (eq (printf "%.5s" $current) "/dev/") -]]
   [[- $section = "dev" -]]
 [[- end -]]
 
-<ul class="sidebar-top">
-  <li><a href="/patterns"[[ if eq $section "patterns" ]] class="active"[[ end ]][[ if eq $current "/patterns" ]] aria-current="page"[[ end ]]>Patterns!</a></li>
-  <li><a href="/roles"[[ if eq $section "roles" ]] class="active"[[ end ]][[ if eq $current "/roles" ]] aria-current="page"[[ end ]]>Deploy!</a></li>
-  <li><a href="/dev"[[ if eq $section "dev" ]] class="active"[[ end ]][[ if eq $current "/dev" ]] aria-current="page"[[ end ]]>Coding!</a></li>
-</ul>
-
 [[- if eq $section "patterns" ]]
   [[ include "/templates/partials/sidebar-section.html" "Development / Frontend" "/content/patterns/development/frontend" "/patterns/development/frontend" ]]
   [[ include "/templates/partials/sidebar-section.html" "Operation / Deployment" "/content/patterns/operation/deployment" "/patterns/operation/deployment" ]]
   [[ include "/templates/partials/sidebar-section.html" "Meta" "/content/patterns/meta" "/patterns/meta" ]]
+[[- else if eq $section "anti-patterns" ]]
+  [[ include "/templates/partials/sidebar-section.html" "" "/content/anti-patterns" "/anti-patterns" ]]
 [[- else if eq $section "roles" ]]
-  [[- /* "Roles" is the section header above; pass an empty label
-       to the partial so it doesn't render a duplicate h3. */ -]]
   [[ include "/templates/partials/sidebar-section.html" "" "/content/roles" "/roles" ]]
 [[- else if eq $section "dev" ]]
   [[- /* dev/ is a stub today — no sub-pages yet. */ -]]

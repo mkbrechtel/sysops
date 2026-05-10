@@ -13,6 +13,8 @@ COPY website/templates/ /srv/templates/
 COPY website/static/    /srv/static/
 COPY patterns/          /srv/content/patterns/
 COPY patterns.md        /srv/content/patterns.md
+COPY anti-patterns/     /srv/content/anti-patterns/
+COPY anti-patterns.md   /srv/content/anti-patterns.md
 COPY roles/             /srv/content/roles/
 COPY roles.md           /srv/content/roles.md
 COPY dev.md             /srv/content/dev.md
