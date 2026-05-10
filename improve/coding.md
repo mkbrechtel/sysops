@@ -106,11 +106,11 @@ would be committed regardless of unstaged changes in the working tree.
 `tests/reference-transaction` does two jobs in one hook, dispatching on the
 transaction phase:
 
-- **`prepared`** — protects `main` from non-fast-forward changes. It rejects
-  force pushes received by the bare repo and local rewrites from any
-  worktree alike (`git reset --hard` to an older commit, history-rewriting
-  rebases, deletion). Branch creation and ordinary fast-forward moves are
-  allowed.
+- **`prepared`** — protects `main`. Rejects non-fast-forward updates (force
+  pushes received by the bare repo, local rewrites like `git reset --hard`
+  to an older commit, history-rewriting rebases, deletion) and rejects
+  updates whose new tip is not a merge commit, so changes always land via
+  an explicit merge from a side branch. Branch creation is allowed.
 - **`committed`** — after `main` successfully advances, syncs `tests/*` from
   the new tree (via `git archive`, so it works in both bare and worktree
   contexts) into `$GIT_COMMON_DIR/hooks/`. That directory is shared across
