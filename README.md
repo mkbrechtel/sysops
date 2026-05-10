@@ -9,7 +9,9 @@ SPDX-License-Identifier: EUPL-1.2
 The ***Cute DevOps!*** project provides a collection of patterns
 and their implementations in form of Ansible roles. The repo ships as the
 Ansible collection `mkbrechtel.devops` and renders to the website at
-[devops.patterns.how](https://devops.patterns.how).
+[devops.patterns.how](https://devops.patterns.how). Heads up — this
+library is pretty opinionated; we're working on a comments section so
+you can drop in and tell us where we're wrong.
 
 **⚠️ Development Phase Notice**
 *This collection is currently in development (version 0.x.x). Breaking changes
