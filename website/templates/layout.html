@@ -27,7 +27,7 @@ placeholders before invoking this template:
 [[- if or (eq $current "/patterns") (eq (printf "%.10s" $current) "/patterns/") -]]
   [[- $sectionLabel = "Patterns!" -]][[- $sectionIcon = "/static/emoji_u1f537.svg" -]]
 [[- else if or (eq $current "/anti-patterns") (eq (printf "%.15s" $current) "/anti-patterns/") -]]
-  [[- $sectionLabel = "Anti-Patterns!" -]][[- $sectionIcon = "/static/red-diamond.svg" -]]
+  [[- $sectionLabel = "Anti-Patterns!" -]][[- $sectionIcon = "/static/emoji_u1f53b.svg" -]]
 [[- else if or (eq $current "/roles") (eq (printf "%.7s" $current) "/roles/") -]]
   [[- $sectionLabel = "Deploy!" -]][[- $sectionIcon = "/static/emoji_u1f680.svg" -]]
 [[- else if or (eq $current "/dev") (eq (printf "%.5s" $current) "/dev/") -]]
@@ -71,7 +71,7 @@ placeholders before invoking this template:
 <label for="switcher-toggle" class="switcher-backdrop" aria-hidden="true"></label>
 <ul class="switcher-menu" role="menu">
   <li><a href="/patterns"      [[ if eq $sectionLabel "Patterns!"      ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f537.svg" alt="">Patterns!</a></li>
-  <li><a href="/anti-patterns" [[ if eq $sectionLabel "Anti-Patterns!" ]] class="active" aria-current="page"[[ end ]]><img src="/static/red-diamond.svg" alt="">Anti-Patterns!</a></li>
+  <li><a href="/anti-patterns" [[ if eq $sectionLabel "Anti-Patterns!" ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f53b.svg" alt="">Anti-Patterns!</a></li>
   <li><a href="/roles"         [[ if eq $sectionLabel "Deploy!"        ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f680.svg" alt="">Deploy!</a></li>
   <li><a href="/dev"           [[ if eq $sectionLabel "Coding!"        ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f4bb.svg" alt="">Coding!</a></li>
 </ul>
