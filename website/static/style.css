@@ -217,6 +217,11 @@ a:hover {
   padding-left: var(--sidebar-w);
 }
 
+/* Home page (`/`): no sidebar — content fills the full width and the
+   hamburger is hidden because there's nothing to slide in. */
+body.home .layout { padding-left: 0; }
+body.home .hamburger { display: none; }
+
 
 /* =================================================================
  * 5. Sidebar & drawer
@@ -280,6 +285,40 @@ a:hover {
 /* =================================================================
  * 6. Content
  * ================================================================= */
+
+/* Home-page section tiles (rendered above the README on `/`). */
+.home-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin: 0 0 2rem;
+}
+@media (min-width: 720px) {
+  .home-tiles { grid-template-columns: repeat(4, 1fr); }
+}
+.home-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: .35rem;
+  padding: 1.25rem 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--fg);
+  text-decoration: none;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.home-tile:hover {
+  text-decoration: none;
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .08);
+}
+.home-tile img    { width: 48px; height: 48px; }
+.home-tile strong { font-size: 1.05rem; }
+.home-tile span   { font-size: .9rem; color: var(--fg-muted); }
 
 .content {
   padding: 2rem var(--pad) 4rem;

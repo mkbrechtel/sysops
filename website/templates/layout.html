@@ -33,33 +33,37 @@ placeholders before invoking this template:
 [[- else if or (eq $current "/dev") (eq (printf "%.5s" $current) "/dev/") -]]
   [[- $sectionLabel = "Coding!" -]][[- $sectionIcon = "/static/emoji_u1f4bb.svg" -]]
 [[- end -]]
+[[- $isHome := eq $current "/" -]]
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>[[ if $hasTitle ]][[ $title ]] | [[ end ]]Cute DevOps!</title>
+<title>[[ if $hasTitle ]][[ $title ]] | [[ end ]]Cute DevOps! 🦄</title>
 <link rel="icon" type="image/svg+xml" href="/static/unicorn.svg">
 <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body[[ if $isHome ]] class="home"[[ end ]]>
 [[- /* Two CSS-only checkbox toggles drive the off-canvas sidebar
       drawer (mobile) and the section-switcher dropdown (header). */ -]]
 <input type="checkbox" id="sidebar-toggle"   class="sidebar-toggle"   hidden>
 <input type="checkbox" id="switcher-toggle"  class="switcher-toggle"  hidden>
 
 <header class="site-header">
-  <a class="site-title" href="/" aria-label="Cute DevOps! — home">
+  <a class="site-title" href="/">
     <img src="/static/unicorn.svg" alt="">
+    <span>Cute DevOps!</span>
   </a>
 
-  [[- if ne $sectionLabel "" ]]
   <label for="switcher-toggle" class="header-section" role="button" aria-haspopup="menu" tabindex="0">
+    [[- if ne $sectionLabel "" ]]
     <img src="[[ $sectionIcon ]]" alt="">
     <span>[[ $sectionLabel ]]</span>
+    [[- else ]]
+    <span>Sections</span>
+    [[- end ]]
     <span class="caret" aria-hidden="true">▾</span>
   </label>
-  [[- end ]]
 
   <label for="sidebar-toggle" class="hamburger" role="button" aria-label="Open navigation" tabindex="0">
     <span></span><span></span><span></span>
@@ -77,11 +81,38 @@ placeholders before invoking this template:
 </ul>
 
 <div class="layout">
+  [[- if not $isHome ]]
   <aside class="sidebar" aria-label="Site navigation">
     [[ include "/templates/partials/sidebar.html" ]]
   </aside>
+  [[- end ]]
 
   <main class="content">
+    [[- if $isHome ]]
+    <nav class="home-tiles" aria-label="Site sections">
+      <a href="/patterns" class="home-tile">
+        <img src="/static/emoji_u1f537.svg" alt="">
+        <strong>Patterns!</strong>
+        <span>Cute, helpful patterns for getting work done.</span>
+      </a>
+      <a href="/anti-patterns" class="home-tile">
+        <img src="/static/emoji_u1f53b.svg" alt="">
+        <strong>Anti-Patterns!</strong>
+        <span>Industry patterns that aren't cute.</span>
+      </a>
+      <a href="/roles" class="home-tile">
+        <img src="/static/emoji_u1f680.svg" alt="">
+        <strong>Deploy!</strong>
+        <span>Ansible roles that ship the patterns.</span>
+      </a>
+      <a href="/dev" class="home-tile">
+        <img src="/static/emoji_u1f4bb.svg" alt="">
+        <strong>Coding!</strong>
+        <span>Working on the collection itself.</span>
+      </a>
+    </nav>
+    [[- end ]]
+
     <article>
       [[- /* Only emit our auto-h1 when the page has a front-matter
             title; otherwise the markdown body's own `# heading`
