@@ -1,9 +1,41 @@
 /*
  * SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
  * SPDX-License-Identifier: EUPL-1.2
+ *
+ * mkbrechtel.devops — website stylesheet
+ *
+ * Organization
+ * ------------
+ *   1. Design tokens         :root custom properties + dark scheme
+ *   2. Reset & base          universal box-sizing, body, links
+ *   3. Header                sticky top bar (hamburger | title | _)
+ *   4. Layout shell          .layout container; reserves space for
+ *                            the desktop sidebar via padding-left
+ *   5. Sidebar & drawer      fixed left rail on desktop, the same
+ *                            element becomes a checkbox-driven
+ *                            off-canvas drawer on mobile (all nav
+ *                            styling lives together)
+ *   6. Content               .content + markdown typography
+ *                            (headings, code, tables, …)
+ *   7. Responsive (≤768px)   one override block: hide the rail,
+ *                            turn drawer mechanics on, swap the
+ *                            layout padding, lock body scroll
+ *
+ * Conventions
+ * -----------
+ *   - Spacing, colours and sizes go through tokens in :root.
+ *   - Physical properties (left/right/top) — not logical — to match
+ *     the rest of the codebase.
+ *   - Mobile breakpoint: 768px. Adjust in section 7 only.
  */
 
+
+/* =================================================================
+ * 1. Design tokens
+ * ================================================================= */
+
 :root {
+  /* palette */
   --bg:           #ffffff;
   --fg:           #1f2328;
   --fg-muted:     #57606a;
@@ -12,6 +44,10 @@
   --border:       #d0d7de;
   --sidebar-bg:   #f6f8fa;
   --code-bg:      #f6f8fa;
+  --backdrop:     rgba(0, 0, 0, .4);
+  --hover-bg:     rgba(127, 127, 127, .12);
+
+  /* sizes */
   --nav-h:        56px;
   --sidebar-w:    18rem;
   --content-max:  48rem;
@@ -31,7 +67,12 @@
   }
 }
 
-* { box-sizing: border-box; }
+
+/* =================================================================
+ * 2. Reset & base
+ * ================================================================= */
+
+*, *::before, *::after { box-sizing: border-box; }
 
 html, body {
   margin: 0;
@@ -39,9 +80,9 @@ html, body {
   background: var(--bg);
   color: var(--fg);
   font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
-  /* The off-canvas mobile drawer sits at translateX(-100%); clip the
-     document's horizontal overflow so it never produces a page-level
-     scrollbar. (clip — vs hidden — keeps position: sticky working.) */
+  /* The mobile drawer sits at translateX(-100%) when closed; clip
+     the document's horizontal overflow so it never produces a
+     page-level scrollbar. `clip` (vs `hidden`) keeps sticky working. */
   overflow-x: clip;
 }
 
@@ -49,10 +90,16 @@ a {
   color: var(--accent);
   text-decoration: none;
 }
-a:hover { color: var(--accent-hover); text-decoration: underline; }
+a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
 
-/* Header: three-column grid so the title sits dead-center regardless
-   of whether the hamburger is shown. */
+
+/* =================================================================
+ * 3. Header
+ * ================================================================= */
+
 .site-header {
   position: sticky;
   top: 0;
@@ -65,6 +112,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
+
 .site-title {
   grid-column: 2;
   justify-self: center;
@@ -75,17 +123,24 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   font-weight: 600;
   color: var(--fg);
 }
-.site-title img { width: 28px; height: 28px; }
-.site-title:hover { text-decoration: none; }
+.site-title img    { width: 28px; height: 28px; }
+.site-title:hover  { text-decoration: none; }
 
-/* Layout: the sidebar is fixed to the viewport's left edge so it stays
-   put through any scroll. The content area reserves room with a matching
-   left padding. */
+
+/* =================================================================
+ * 4. Layout shell
+ * ================================================================= */
+
 .layout {
+  /* Reserves the desktop sidebar's column. Mobile overrides this. */
   padding-left: var(--sidebar-w);
 }
 
-/* Sidebar */
+
+/* =================================================================
+ * 5. Sidebar & drawer
+ * ================================================================= */
+
 .sidebar {
   position: fixed;
   top: var(--nav-h);
@@ -99,10 +154,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   font-size: .95rem;
   z-index: 5;
 }
-.hamburger,
-.sidebar-backdrop {
-  display: none;
-}
+
 .sidebar h3 {
   margin: 1.25rem 0 .35rem;
   font-size: .8rem;
@@ -111,39 +163,43 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   letter-spacing: .04em;
   color: var(--fg-muted);
 }
+
 .sidebar ul {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 .sidebar li { margin: .15rem 0; }
+
 .sidebar a {
   display: block;
   padding: .25rem .5rem;
   border-radius: 4px;
   color: var(--fg);
 }
-.sidebar a:hover {
-  background: rgba(127, 127, 127, .12);
-  text-decoration: none;
-}
-.sidebar a.active {
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
-}
+.sidebar a:hover    { background: var(--hover-bg); text-decoration: none; }
+.sidebar a.active   { background: var(--accent); color: #fff; font-weight: 600; }
 
-/* Main content */
+/* Drawer controls — hidden by default; the responsive block below
+   flips them on at the mobile breakpoint. */
+.hamburger,
+.sidebar-backdrop { display: none; }
+
+
+/* =================================================================
+ * 6. Content
+ * ================================================================= */
+
 .content {
   padding: 2rem var(--pad) 4rem;
   max-width: var(--content-max);
   margin: 0 auto;
-  /* Defensive: a stray long URL or token in prose shouldn't push the
-     page wider than the viewport. Code blocks scroll internally; this
-     handles everything else. */
+  /* Defensive: stray long URLs/tokens in prose must not push the
+     page wider than the viewport. Code blocks scroll internally. */
   overflow-wrap: break-word;
   min-width: 0;
 }
+
 .content h1 {
   margin-top: 0;
   font-size: 2rem;
@@ -152,15 +208,16 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 }
 .content h2 { font-size: 1.5rem; margin-top: 2rem; }
 .content h3 { font-size: 1.2rem; margin-top: 1.5rem; }
-.content p, .content ul, .content ol { margin: .8rem 0; }
+.content p,
+.content ul,
+.content ol { margin: .8rem 0; }
+
 .content code {
   background: var(--code-bg);
   padding: .15rem .35rem;
   border-radius: 4px;
   font-size: .9em;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  /* Inline code can wrap mid-token if needed so it never pushes the
-     page wider than the viewport. */
   overflow-wrap: anywhere;
 }
 .content pre {
@@ -176,22 +233,25 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 .content pre code {
   background: transparent;
   padding: 0;
-  /* Reset the inline-code wrapping inside <pre>; we want the block to
-     scroll, not the line to wrap. */
+  /* Reset the inline-code wrap inside <pre>: block scrolls, lines
+     shouldn't wrap. */
   overflow-wrap: normal;
 }
+
 .content blockquote {
   margin: 1rem 0;
   padding: .25rem 1rem;
   border-left: 4px solid var(--border);
   color: var(--fg-muted);
 }
+
 .content table {
   border-collapse: collapse;
   width: 100%;
   margin: 1rem 0;
 }
-.content th, .content td {
+.content th,
+.content td {
   border: 1px solid var(--border);
   padding: .4rem .7rem;
   text-align: left;
@@ -205,14 +265,21 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   color: var(--fg-muted);
 }
 
-/* Mobile: sidebar collapses into a CSS-only drawer triggered by the
-   hidden #sidebar-toggle checkbox in the layout. */
-@media (max-width: 768px) {
-  .layout {
-    padding-left: 0;
-  }
 
-  /* Hamburger button in the header */
+/* =================================================================
+ * 7. Responsive (≤768px)
+ *
+ * Single override block that turns the desktop layout into a
+ * one-column page with an off-canvas drawer. The drawer state
+ * lives in the hidden #sidebar-toggle checkbox in <body>.
+ * ================================================================= */
+
+@media (max-width: 768px) {
+
+  /* Layout: drop the rail's reserved column. */
+  .layout { padding-left: 0; }
+
+  /* Hamburger: snaps into column 1 of the header grid. */
   .hamburger {
     grid-column: 1;
     justify-self: start;
@@ -227,7 +294,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
     cursor: pointer;
     user-select: none;
   }
-  .hamburger:hover { background: rgba(127, 127, 127, .12); }
+  .hamburger:hover { background: var(--hover-bg); }
   .hamburger span {
     display: block;
     height: 2px;
@@ -235,35 +302,32 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
     border-radius: 2px;
   }
 
-  /* Off-canvas drawer */
+  /* Sidebar becomes an off-canvas drawer (full height, slides in). */
   .sidebar {
     top: 0;
     width: min(85vw, 20rem);
     height: 100vh;
+    height: 100dvh;          /* dynamic viewport for mobile UI chrome */
     padding: 1.25rem 1.25rem 2rem;
-    border-right: 1px solid var(--border);
     transform: translateX(-100%);
     transition: transform .2s ease;
     z-index: 100;
     -webkit-overflow-scrolling: touch;
   }
-  /* The first list shouldn't carry the default browser margin. */
-  .sidebar > ul:first-child {
-    margin-top: 0;
-  }
 
-  /* Backdrop */
+  /* Backdrop: full-viewport label that closes the drawer on tap. */
   .sidebar-backdrop {
+    display: block;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, .4);
+    background: var(--backdrop);
     opacity: 0;
     pointer-events: none;
     transition: opacity .2s ease;
     z-index: 99;
   }
 
-  /* Open state, driven by the hidden toggle checkbox. */
+  /* Open state, driven by the hidden #sidebar-toggle checkbox. */
   .sidebar-toggle:checked ~ .layout .sidebar {
     transform: translateX(0);
   }
@@ -271,8 +335,8 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
     opacity: 1;
     pointer-events: auto;
   }
-  /* Lock body scroll while the drawer is open. */
-  .sidebar-toggle:checked ~ .layout {
+  /* Lock body scroll while the drawer is open (modern :has support). */
+  body:has(.sidebar-toggle:checked) {
     overflow: hidden;
   }
 }
