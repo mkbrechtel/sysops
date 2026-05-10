@@ -76,8 +76,8 @@ placeholders before invoking this template:
 <ul class="switcher-menu" role="menu">
   <li><a href="/patterns"      [[ if eq $sectionLabel "Patterns!"      ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f537.svg" alt="">Patterns!</a></li>
   <li><a href="/roles"         [[ if eq $sectionLabel "Deploy!"        ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f680.svg" alt="">Deploy!</a></li>
-  <li><a href="/improve"       [[ if eq $sectionLabel "Improve!"       ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u2728.svg" alt="">Improve!</a></li>
   <li><a href="/anti-patterns" [[ if eq $sectionLabel "Anti-Patterns!" ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f53b.svg" alt="">Anti-Patterns!</a></li>
+  <li><a href="/improve"       [[ if eq $sectionLabel "Improve!"       ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u2728.svg" alt="">Improve!</a></li>
 </ul>
 
 <div class="layout">
@@ -100,15 +100,15 @@ placeholders before invoking this template:
         <strong>Deploy!</strong>
         <span>Ansible roles that ship the patterns.</span>
       </a>
-      <a href="/improve" class="home-tile">
-        <img src="/static/emoji_u2728.svg" alt="">
-        <strong>Improve!</strong>
-        <span>Help us improve the library together.</span>
-      </a>
       <a href="/anti-patterns" class="home-tile">
         <img src="/static/emoji_u1f53b.svg" alt="">
         <strong>Anti-Patterns!</strong>
         <span>Critiques of industry patterns that aren't cute.</span>
+      </a>
+      <a href="/improve" class="home-tile">
+        <img src="/static/emoji_u2728.svg" alt="">
+        <strong>Improve!</strong>
+        <span>Help us improve the library together.</span>
       </a>
     </nav>
     [[- end ]]
