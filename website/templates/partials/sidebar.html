@@ -7,22 +7,45 @@ Site navigation. The website has three top-level sections:
   • Roles      — Ansible role docs     (/roles)
   • Dev        — collection developer docs (/dev)
 
-Top-level links live in the always-visible link bar at the top of
-the sidebar. Sub-section listings beneath are enumerated at request
-time by sidebar-section.html — no rebuild required when content is
-added.
+The always-visible link bar at the top switches between them. Below
+that we render only the listing for the current section, with the
+section name as the sidebar's main header.
 */ -]]
 [[- $current := .OriginalReq.URL.Path -]]
 
+[[- /* Detect the current top-level section from the URL.
+       Caddy 2.6 templates have no hasPrefix, so we use printf with
+       a precision specifier to take the first N characters and
+       compare. The exact match (no trailing slash) is checked too. */ -]]
+[[- $section := "" -]]
+[[- $sectionLabel := "" -]]
+[[- if or (eq $current "/patterns") (eq (printf "%.10s" $current) "/patterns/") -]]
+  [[- $section = "patterns" -]][[- $sectionLabel = "Patterns" -]]
+[[- else if or (eq $current "/roles") (eq (printf "%.7s" $current) "/roles/") -]]
+  [[- $section = "roles" -]][[- $sectionLabel = "Roles" -]]
+[[- else if or (eq $current "/dev") (eq (printf "%.5s" $current) "/dev/") -]]
+  [[- $section = "dev" -]][[- $sectionLabel = "Dev" -]]
+[[- end -]]
+
 <ul class="sidebar-top">
   <li><a href="/about"[[ if eq $current "/about" ]] class="active" aria-current="page"[[ end ]]>About</a></li>
-  <li><a href="/patterns"[[ if eq $current "/patterns" ]] class="active" aria-current="page"[[ end ]]>Patterns</a></li>
-  <li><a href="/roles"[[ if eq $current "/roles" ]] class="active" aria-current="page"[[ end ]]>Roles</a></li>
-  <li><a href="/dev"[[ if eq $current "/dev" ]] class="active" aria-current="page"[[ end ]]>Dev</a></li>
+  <li><a href="/patterns"[[ if eq $section "patterns" ]] class="active"[[ end ]][[ if eq $current "/patterns" ]] aria-current="page"[[ end ]]>Patterns</a></li>
+  <li><a href="/roles"[[ if eq $section "roles" ]] class="active"[[ end ]][[ if eq $current "/roles" ]] aria-current="page"[[ end ]]>Roles</a></li>
+  <li><a href="/dev"[[ if eq $section "dev" ]] class="active"[[ end ]][[ if eq $current "/dev" ]] aria-current="page"[[ end ]]>Dev</a></li>
 </ul>
 
-[[ include "/templates/partials/sidebar-section.html" "Patterns / Development / Frontend" "/content/patterns/development/frontend" "/patterns/development/frontend" ]]
-[[ include "/templates/partials/sidebar-section.html" "Patterns / Operation / Deployment" "/content/patterns/operation/deployment" "/patterns/operation/deployment" ]]
-[[ include "/templates/partials/sidebar-section.html" "Patterns / Meta" "/content/patterns/meta" "/patterns/meta" ]]
+[[- if ne $sectionLabel "" ]]
+<h2 class="sidebar-current-section">[[ $sectionLabel ]]</h2>
+[[- end ]]
 
-[[ include "/templates/partials/sidebar-section.html" "Roles" "/content/roles" "/roles" ]]
+[[- if eq $section "patterns" ]]
+  [[ include "/templates/partials/sidebar-section.html" "Development / Frontend" "/content/patterns/development/frontend" "/patterns/development/frontend" ]]
+  [[ include "/templates/partials/sidebar-section.html" "Operation / Deployment" "/content/patterns/operation/deployment" "/patterns/operation/deployment" ]]
+  [[ include "/templates/partials/sidebar-section.html" "Meta" "/content/patterns/meta" "/patterns/meta" ]]
+[[- else if eq $section "roles" ]]
+  [[- /* "Roles" is the section header above; pass an empty label
+       to the partial so it doesn't render a duplicate h3. */ -]]
+  [[ include "/templates/partials/sidebar-section.html" "" "/content/roles" "/roles" ]]
+[[- else if eq $section "dev" ]]
+  [[- /* dev/ is a stub today — no sub-pages yet. */ -]]
+[[- end ]]

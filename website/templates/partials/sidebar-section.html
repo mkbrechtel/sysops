@@ -30,7 +30,9 @@ Args (passed via Caddy's `include` extras):
 [[- $current := .OriginalReq.URL.Path -]]
 
 [[- if fileExists $dir ]]
+[[- if ne $label "" ]]
 <h3 class="sidebar-section">[[ $label ]]</h3>
+[[- end ]]
 <ul class="sidebar-list">
 [[- range $name := listFiles $dir ]]
   [[- if ne $name "index.md" ]]

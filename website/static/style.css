@@ -165,6 +165,16 @@ a:hover {
   z-index: 5;
 }
 
+/* Big header naming the current top-level section. */
+.sidebar-current-section {
+  margin: 1.25rem 0 .75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--fg);
+}
+
+/* Sub-section headings inside a section listing. */
 .sidebar h3 {
   margin: 1.25rem 0 .35rem;
   font-size: .8rem;
