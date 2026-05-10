@@ -109,6 +109,11 @@ they install `tests/*` into `$GIT_COMMON_DIR/hooks/`. That directory is
 shared across every worktree of the same repository, so a single update on
 `main` rolls out the new hooks everywhere — no per-clone configuration.
 
+`tests/update` is a server-side hook that protects `main` from
+non-fast-forward updates and deletions: branch creation and ordinary
+fast-forward pushes are allowed, force pushes that would orphan commits
+are rejected.
+
 Bootstrap a fresh clone once by copying the scripts in:
 
 ```bash
