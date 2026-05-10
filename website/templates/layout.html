@@ -13,14 +13,16 @@ placeholders before invoking this template:
 [[- if eq $file "" -]][[- httpError 404 -]][[- end -]]
 
 [[- $page := splitFrontMatter (include $file) -]]
+[[- /* `not` catches both nil (missing key) and the empty string. */ -]]
+[[- $hasTitle := not (not $page.Meta.title) -]]
 [[- $title := $page.Meta.title -]]
-[[- if eq $title "" -]][[- $title = "Cute DevOps Patterns!" -]][[- end -]]
+[[- if not $hasTitle -]][[- $title = "Cute DevOps Patterns!" -]][[- end -]]
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>[[ $title ]] | Cute DevOps Patterns!</title>
+<title>[[ if $hasTitle ]][[ $title ]] | [[ end ]]Cute DevOps Patterns!</title>
 <link rel="icon" type="image/svg+xml" href="/static/emoji_u1f537.svg">
 <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -44,7 +46,10 @@ placeholders before invoking this template:
 
   <main class="content">
     <article>
-      <h1>[[ $title ]]</h1>
+      [[- /* Only emit our auto-h1 when the page has a front-matter
+            title; otherwise the markdown body's own `# heading`
+            carries the page heading and we'd be doubling up. */ -]]
+      [[ if $hasTitle ]]<h1>[[ $title ]]</h1>[[ end ]]
       [[ markdown $page.Body ]]
     </article>
     <footer class="page-footer">

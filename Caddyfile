@@ -56,15 +56,9 @@
 		respond "ok" 200
 	}
 
-	# Soft-redirect the bare root to the about page.
-	@root path /
-	handle @root {
-		redir * /about 302
-	}
-
-	# /about renders the repository's README.md (copied to /srv/about.md
+	# Root renders the repository's README.md (copied to /srv/about.md
 	# in the container build).
-	handle /about {
+	handle / {
 		vars page_file "/about.md"
 		vars page_edit "/README.md"
 		import render_page

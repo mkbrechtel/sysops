@@ -8,7 +8,7 @@ SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.br
 SPDX-License-Identifier: EUPL-1.2
 -->
 
-Documentation for working on the [`mkbrechtel.devops`](/about) collection
+Documentation for working on the [`mkbrechtel.devops`](/) collection
 itself: coding conventions, contribution flow, the release process, and
 the project's planning surface.
 
