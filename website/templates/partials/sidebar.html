@@ -15,8 +15,8 @@ so the sidebar only renders the listing for the current section.
   [[- $section = "anti-patterns" -]]
 [[- else if or (eq $current "/roles") (eq (printf "%.7s" $current) "/roles/") -]]
   [[- $section = "roles" -]]
-[[- else if or (eq $current "/dev") (eq (printf "%.5s" $current) "/dev/") -]]
-  [[- $section = "dev" -]]
+[[- else if or (eq $current "/improve") (eq (printf "%.9s" $current) "/improve/") -]]
+  [[- $section = "improve" -]]
 [[- end -]]
 
 [[- if eq $section "patterns" ]]
@@ -42,6 +42,6 @@ so the sidebar only renders the listing for the current section.
     </ul>
   </div>
   [[- end ]]
-[[- else if eq $section "dev" ]]
-  [[- /* dev/ is a stub today — no sub-pages yet. */ -]]
+[[- else if eq $section "improve" ]]
+  [[- /* improve/ is a stub today — no sub-pages yet. */ -]]
 [[- end ]]

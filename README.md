@@ -54,14 +54,14 @@ Requirements: Ansible ≥ 2.14.3 on Debian 13 (trixie).
 
 → [Browse role documentation 🚀](./roles.md)
 
-## Coding! 💻
+## Improve! ✨
 
 Documentation for working on the collection itself: coding
 conventions, contribution flow, the release process, and the
 project's planning surface (`issues/*.feature.md`,
 `issues/*.pattern.md`, `issues/*.bug.md`).
 
-→ [Read the developer docs 💻](./dev.md)
+→ [Read the developer docs ✨](./improve.md)
 
 ## License
 

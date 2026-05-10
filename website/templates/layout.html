@@ -30,8 +30,8 @@ placeholders before invoking this template:
   [[- $sectionLabel = "Anti-Patterns!" -]][[- $sectionIcon = "/static/emoji_u1f53b.svg" -]]
 [[- else if or (eq $current "/roles") (eq (printf "%.7s" $current) "/roles/") -]]
   [[- $sectionLabel = "Deploy!" -]][[- $sectionIcon = "/static/emoji_u1f680.svg" -]]
-[[- else if or (eq $current "/dev") (eq (printf "%.5s" $current) "/dev/") -]]
-  [[- $sectionLabel = "Coding!" -]][[- $sectionIcon = "/static/emoji_u1f4bb.svg" -]]
+[[- else if or (eq $current "/improve") (eq (printf "%.9s" $current) "/improve/") -]]
+  [[- $sectionLabel = "Improve!" -]][[- $sectionIcon = "/static/emoji_u2728.svg" -]]
 [[- end -]]
 [[- $isHome := eq $current "/" -]]
 <!doctype html>
@@ -76,7 +76,7 @@ placeholders before invoking this template:
 <ul class="switcher-menu" role="menu">
   <li><a href="/patterns"      [[ if eq $sectionLabel "Patterns!"      ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f537.svg" alt="">Patterns!</a></li>
   <li><a href="/roles"         [[ if eq $sectionLabel "Deploy!"        ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f680.svg" alt="">Deploy!</a></li>
-  <li><a href="/dev"           [[ if eq $sectionLabel "Coding!"        ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f4bb.svg" alt="">Coding!</a></li>
+  <li><a href="/improve"       [[ if eq $sectionLabel "Improve!"       ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u2728.svg" alt="">Improve!</a></li>
   <li><a href="/anti-patterns" [[ if eq $sectionLabel "Anti-Patterns!" ]] class="active" aria-current="page"[[ end ]]><img src="/static/emoji_u1f53b.svg" alt="">Anti-Patterns!</a></li>
 </ul>
 
@@ -100,9 +100,9 @@ placeholders before invoking this template:
         <strong>Deploy!</strong>
         <span>Ansible roles that ship the patterns.</span>
       </a>
-      <a href="/dev" class="home-tile">
-        <img src="/static/emoji_u1f4bb.svg" alt="">
-        <strong>Coding!</strong>
+      <a href="/improve" class="home-tile">
+        <img src="/static/emoji_u2728.svg" alt="">
+        <strong>Improve!</strong>
         <span>Working on the collection itself.</span>
       </a>
       <a href="/anti-patterns" class="home-tile">

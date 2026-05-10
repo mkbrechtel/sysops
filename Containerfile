@@ -18,7 +18,7 @@ COPY anti-patterns.md   /srv/content/anti-patterns.md
 COPY roles/             /srv/content/roles/
 COPY roles.md           /srv/content/roles.md
 COPY role-groups.md     /srv/content/role-groups.md
-COPY dev.md             /srv/content/dev.md
+COPY improve.md         /srv/content/improve.md
 COPY README.md          /srv/about.md
 
 EXPOSE 8080
