@@ -6,6 +6,12 @@
 #
 # Today this serves the documentation website. Additional services
 # (e.g. an MCP server) will be mounted as further handle blocks below.
+#
+# URL contract:
+#   /foo            HTML render        (browser, Accept: text/html)
+#   /foo            302 → /foo.md      (curl & friends, no text/html)
+#   /foo.md         raw markdown
+#
 {
 	auto_https off
 	admin off
@@ -68,45 +74,60 @@
 		file_server
 	}
 
-	# Root renders the repository's README.md (copied to /srv/about.md
-	# in the container build).
+	# Root: browser → render the README; non-html clients → /README.md.
+	@root_no_html {
+		path /
+		not header Accept *text/html*
+	}
+	handle @root_no_html {
+		redir * /README.md 302
+	}
 	handle / {
-		vars page_file "/about.md"
+		vars page_file "/content/README.md"
 		vars page_edit "/README.md"
 		import render_page
 	}
 
-	# Pattern pages live under /patterns/. Files are mounted at
-	# /srv/content/patterns/ so the URL path maps 1:1 onto the file
-	# layout. Three candidates per request:
-	#   /patterns/foo.md       → /content/patterns/foo.md       (explicit, used by sidebar links)
-	#   /patterns/foo          → /content/patterns/foo.md       (clean URL)
-	#   /patterns/foo          → /content/patterns/foo/index.md (clean URL, folder fallback)
-	@pattern_explicit {
+	# `.md` URLs: serve the original markdown verbatim.
+	@md_raw {
 		path *.md
 		file /content{path}
 	}
-	handle @pattern_explicit {
-		vars page_file {http.matchers.file.relative}
-		vars page_edit "{path}"
-		import render_page
+	handle @md_raw {
+		rewrite * /content{path}
+		header Content-Type "text/markdown; charset=utf-8"
+		file_server
 	}
 
+	# Clean URLs without a text/html Accept header → redirect to the
+	# matching `.md` source. Two flavours: direct file, and the
+	# Ansible-role-style folder where the README lives one level down.
+	@clean_no_html_direct {
+		not header Accept *text/html*
+		file {
+			try_files /content{path}.md
+		}
+	}
+	handle @clean_no_html_direct {
+		redir * {path}.md 302
+	}
+	@clean_no_html_readme {
+		not header Accept *text/html*
+		file {
+			try_files /content{path}/README.md
+		}
+	}
+	handle @clean_no_html_readme {
+		redir * {path}/README.md 302
+	}
+
+	# Clean URLs with a text/html Accept header → render the page.
 	@pattern_direct file {
 		try_files /content{path}.md
 	}
 	handle @pattern_direct {
 		vars page_file {http.matchers.file.relative}
 		vars page_edit "{path}.md"
-		import render_page
-	}
-
-	@pattern_index file {
-		try_files /content{path}/index.md
-	}
-	handle @pattern_index {
-		vars page_file {http.matchers.file.relative}
-		vars page_edit "{path}/index.md"
 		import render_page
 	}
 

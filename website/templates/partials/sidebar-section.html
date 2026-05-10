@@ -39,7 +39,9 @@ Args (passed via Caddy's `include` extras):
   [[- if ne $name "index.md" ]]
     [[- $readme := printf "%s/%s/README.md" $dir $name -]]
     [[- $direct := printf "%s/%s" $dir $name -]]
-    [[- $href   := printf "%s/%s" $baseurl $name -]]
+    [[- /* Sprig trimSuffix gives us clean URLs without ".md". */ -]]
+    [[- $slug := trimSuffix ".md" $name -]]
+    [[- $href := printf "%s/%s" $baseurl $slug -]]
 
     [[- if fileExists $readme ]]
       [[- /* dir-of-subdirs: title = directory name */ -]]
@@ -48,7 +50,7 @@ Args (passed via Caddy's `include` extras):
       [[- /* leaf-of-files: read front matter for a nicer title */ -]]
       [[- $page := splitFrontMatter (include $direct) -]]
       [[- $title := $page.Meta.title -]]
-      [[- if not $title ]][[- $title = $name -]][[- end ]]
+      [[- if not $title ]][[- $title = $slug -]][[- end ]]
   <li><a href="[[ $href ]]"[[ if eq $current $href ]] class="active" aria-current="page"[[ end ]]>[[ $title ]]</a></li>
     [[- end ]]
   [[- end ]]

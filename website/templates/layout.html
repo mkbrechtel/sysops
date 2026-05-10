@@ -118,7 +118,10 @@ placeholders before invoking this template:
             title; otherwise the markdown body's own `# heading`
             carries the page heading and we'd be doubling up. */ -]]
       [[ if $hasTitle ]]<h1>[[ $title ]]</h1>[[ end ]]
-      [[ markdown $page.Body ]]
+      [[- /* Strip .md from inline link targets so the rendered HTML
+            has clean URLs in <a href>. The source files keep .md so
+            GitHub renders the same files correctly. */ -]]
+      [[ markdown (regexReplaceAll `\.md([)#])` $page.Body `$1`) ]]
     </article>
     <footer class="page-footer">
       <a href="https://github.com/mkbrechtel/devops/edit/main[[ $edit ]]" rel="noopener">
