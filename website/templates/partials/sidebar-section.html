@@ -1,29 +1,54 @@
-{{- /*
+[[- /*
 SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 SPDX-License-Identifier: EUPL-1.2
 
-A single sidebar section, enumerated at request time.
+A single sidebar section, enumerated at request time. Handles two
+shapes of section directory:
+
+  • Leaf-of-files     — entries are .md files (e.g. patterns/meta/);
+                        the link points at /baseurl/<name>.md and the
+                        title comes from the file's YAML front matter
+                        (read by splitFrontMatter).
+
+  • Dir-of-subdirs    — entries are subdirectories whose intro lives
+                        in <name>/README.md (e.g. roles/<role>/); the
+                        link points at /baseurl/<name>. Title is the
+                        directory name verbatim — we deliberately do
+                        NOT execute the README as a Caddy template,
+                        because role READMEs contain Ansible Jinja
+                        snippets ([[ inventory_hostname ]] & friends)
+                        that the Go-template engine would choke on.
 
 Args (passed via Caddy's `include` extras):
-  0 — section label  (e.g. "Meta")
-  1 — content dir    (relative to site root, e.g. "/content/patterns/meta")
-  2 — URL base       (e.g. "/patterns/meta")
-*/ -}}
-{{- $label   := index .Args 0 -}}
-{{- $dir     := index .Args 1 -}}
-{{- $baseurl := index .Args 2 -}}
-{{- $current := .OriginalReq.URL.Path -}}
+  0 — section label  (e.g. "Roles")
+  1 — content dir    (relative to site root, e.g. "/content/roles")
+  2 — URL base       (e.g. "/roles")
+*/ -]]
+[[- $label   := index .Args 0 -]]
+[[- $dir     := index .Args 1 -]]
+[[- $baseurl := index .Args 2 -]]
+[[- $current := .OriginalReq.URL.Path -]]
 
-<h3 class="sidebar-section">{{ $label }}</h3>
+[[- if fileExists $dir ]]
+<h3 class="sidebar-section">[[ $label ]]</h3>
 <ul class="sidebar-list">
-{{- range $name := listFiles $dir }}
-  {{- if ne $name "index.md" }}
-    {{- $path  := printf "%s/%s" $dir $name -}}
-    {{- $href  := printf "%s/%s" $baseurl $name -}}
-    {{- $page  := splitFrontMatter (include $path) -}}
-    {{- $title := $page.Meta.title -}}
-    {{- if not $title }}{{- $title = $name -}}{{- end }}
-  <li><a href="{{ $href }}"{{ if eq $current $href }} class="active" aria-current="page"{{ end }}>{{ $title }}</a></li>
-  {{- end }}
-{{- end }}
+[[- range $name := listFiles $dir ]]
+  [[- if ne $name "index.md" ]]
+    [[- $readme := printf "%s/%s/README.md" $dir $name -]]
+    [[- $direct := printf "%s/%s" $dir $name -]]
+    [[- $href   := printf "%s/%s" $baseurl $name -]]
+
+    [[- if fileExists $readme ]]
+      [[- /* dir-of-subdirs: title = directory name */ -]]
+  <li><a href="[[ $href ]]"[[ if eq $current $href ]] class="active" aria-current="page"[[ end ]]>[[ $name ]]</a></li>
+    [[- else if fileExists $direct ]]
+      [[- /* leaf-of-files: read front matter for a nicer title */ -]]
+      [[- $page := splitFrontMatter (include $direct) -]]
+      [[- $title := $page.Meta.title -]]
+      [[- if not $title ]][[- $title = $name -]][[- end ]]
+  <li><a href="[[ $href ]]"[[ if eq $current $href ]] class="active" aria-current="page"[[ end ]]>[[ $title ]]</a></li>
+    [[- end ]]
+  [[- end ]]
+[[- end ]]
 </ul>
+[[- end ]]

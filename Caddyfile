@@ -21,6 +21,10 @@
 	rewrite * /templates/layout.html
 	templates {
 		mime text/html
+		# Use non-Mustache delimiters so role READMEs containing
+		# Ansible Jinja syntax ({{ inventory_hostname }} & friends)
+		# are inert when included for front-matter / markdown rendering.
+		between "[[" "]]"
 	}
 	header Content-Type "text/html; charset=utf-8"
 	file_server
@@ -100,6 +104,17 @@
 		import render_page
 	}
 
+	# Folder fallback: render <path>/README.md (used by Ansible roles
+	# under /roles/<name>, where the README lives inside the role dir).
+	@pattern_readme file {
+		try_files /content{path}/README.md
+	}
+	handle @pattern_readme {
+		vars page_file {http.matchers.file.relative}
+		vars page_edit "{path}/README.md"
+		import render_page
+	}
+
 	# Anything else: fall through to the error template.
 	handle {
 		error 404
@@ -109,6 +124,7 @@
 		rewrite * /templates/error.html
 		templates {
 			mime text/html
+			between "[[" "]]"
 		}
 		header Content-Type "text/html; charset=utf-8"
 		file_server
