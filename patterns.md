@@ -1,5 +1,5 @@
 ---
-title: Cute Patterns! 🔷
+title: Patterns! 🔷
 ---
 
 <!--
