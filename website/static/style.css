@@ -289,8 +289,8 @@ body.home .hamburger { display: none; }
    the link's size. */
 .sidebar a.active {
   background: transparent;
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--fg);
+  font-weight: 700;
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
