@@ -283,7 +283,26 @@ body.home .hamburger { display: none; }
   color: var(--fg);
 }
 .sidebar a:hover    { background: var(--hover-bg); text-decoration: none; }
-.sidebar a.active   { background: var(--accent); color: #fff; font-weight: 600; }
+
+/* Active item: just a small accent triangle in the top-left corner,
+   not a full-bg fill. Keeps the rest of the item visually quiet. */
+.sidebar a.active {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  position: relative;
+}
+.sidebar a.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  border-top-left-radius: 4px;
+}
 
 /* Hamburger control — hidden by default; the responsive block below
    turns it on at the mobile breakpoint. */
