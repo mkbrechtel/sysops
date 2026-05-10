@@ -57,6 +57,18 @@ committed)
             echo "reference-transaction: synced tests/* from $newrev -> $hooksdir/" >&2
         fi
         rm -rf "$tmp"
+
+        # Auto-push main to github so the public mirror tracks the bare
+        # repo without manual intervention. Failures (no network, auth,
+        # non-FF on the remote) warn but don't block the local update.
+        if git remote get-url github >/dev/null 2>&1; then
+            if push_output=$(git push github main 2>&1); then
+                echo "reference-transaction: pushed main to github" >&2
+            else
+                echo "reference-transaction: WARNING — auto-push to github failed:" >&2
+                printf '  %s\n' "$push_output" >&2
+            fi
+        fi
     done
     ;;
 esac
