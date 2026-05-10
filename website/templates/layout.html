@@ -129,9 +129,7 @@ placeholders before invoking this template:
             GitHub renders the same files correctly. */ -]]
       [[ markdown (regexReplaceAll `\.md([)#])` $page.Body `$1`) ]]
     </article>
-    [[- if ne $section "" ]]
-    [[ include "/templates/partials/footer-nav.html" $section $current ]]
-    [[- end ]]
+    [[ include "/templates/partials/footer-nav.html" $current ]]
     <footer class="page-footer">
       <a href="https://github.com/mkbrechtel/devops/edit/main[[ $edit ]]" rel="noopener">
         Edit this page on GitHub

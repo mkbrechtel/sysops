@@ -2,79 +2,80 @@
 SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 SPDX-License-Identifier: EUPL-1.2
 
-Renders prev/next links at the bottom of a page. Builds the ordered
-list of pages for the current section (mirroring the sidebar's order)
-at request time, finds the current page in it, and emits the
-neighbours.
+Renders prev/next links at the bottom of a page. Builds the *whole-site*
+ordered chain at request time (Home → Patterns! → Deploy! →
+Anti-Patterns! → Improve!) so the user can step through the entire
+sitemap one page at a time. Only the very last page has no Next; only
+Home has no Prev.
 
 Args (passed via Caddy's `include` extras):
-  0 — section identifier ("patterns" | "anti-patterns" | "roles" | "improve")
-  1 — current URL path (used to locate the page in the list)
+  0 — current URL path
 */ -]]
-[[- $section := index .Args 0 -]]
-[[- $current := index .Args 1 -]]
+[[- $current := index .Args 0 -]]
 
 [[- $items := list -]]
+[[- $items = append $items (dict "href" "/"              "title" "Home")             -]]
 
-[[- if eq $section "patterns" -]]
-  [[- $dirs  := list
-      "/content/patterns/approaches"
-      "/content/patterns/development/frontend"
-      "/content/patterns/operation/deployment"
-      "/content/patterns/meta" -]]
-  [[- $bases := list
-      "/patterns/approaches"
-      "/patterns/development/frontend"
-      "/patterns/operation/deployment"
-      "/patterns/meta" -]]
-  [[- range $i, $dir := $dirs -]]
-    [[- $base := index $bases $i -]]
-    [[- if fileExists $dir -]]
-      [[- range $name := sortAlpha (listFiles $dir) -]]
-        [[- /* Sprig hasSuffix args: (suffix, string). */ -]]
-        [[- if and (ne $name "index.md") (hasSuffix ".md" $name) -]]
-          [[- $slug  := trimSuffix ".md" $name -]]
-          [[- $href  := printf "%s/%s" $base $slug -]]
-          [[- $page  := splitFrontMatter (include (printf "%s/%s" $dir $name)) -]]
-          [[- $title := $page.Meta.title -]]
-          [[- if not $title -]][[- $title = $slug -]][[- end -]]
-          [[- $items = append $items (dict "href" $href "title" $title) -]]
-        [[- end -]]
+[[- /* Patterns! ----------------------------------------------------- */ -]]
+[[- $items = append $items (dict "href" "/patterns"      "title" "Patterns! 🔷") -]]
+[[- $patternDirs  := list
+    "/content/patterns/approaches"
+    "/content/patterns/development/frontend"
+    "/content/patterns/operation/deployment"
+    "/content/patterns/meta" -]]
+[[- $patternBases := list
+    "/patterns/approaches"
+    "/patterns/development/frontend"
+    "/patterns/operation/deployment"
+    "/patterns/meta" -]]
+[[- range $i, $dir := $patternDirs -]]
+  [[- $base := index $patternBases $i -]]
+  [[- if fileExists $dir -]]
+    [[- range $name := sortAlpha (listFiles $dir) -]]
+      [[- if and (ne $name "index.md") (hasSuffix ".md" $name) -]]
+        [[- $slug  := trimSuffix ".md" $name -]]
+        [[- $href  := printf "%s/%s" $base $slug -]]
+        [[- $page  := splitFrontMatter (include (printf "%s/%s" $dir $name)) -]]
+        [[- $title := $page.Meta.title -]]
+        [[- if not $title -]][[- $title = $slug -]][[- end -]]
+        [[- $items = append $items (dict "href" $href "title" $title) -]]
       [[- end -]]
     [[- end -]]
   [[- end -]]
+[[- end -]]
 
-[[- else if eq $section "anti-patterns" -]]
-  [[- range $name := sortAlpha (listFiles "/content/anti-patterns") -]]
-    [[- if and (ne $name "index.md") (hasSuffix ".md" $name) -]]
-      [[- $slug  := trimSuffix ".md" $name -]]
-      [[- $href  := printf "/anti-patterns/%s" $slug -]]
-      [[- $page  := splitFrontMatter (include (printf "/content/anti-patterns/%s" $name)) -]]
-      [[- $title := $page.Meta.title -]]
-      [[- if not $title -]][[- $title = $slug -]][[- end -]]
-      [[- $items = append $items (dict "href" $href "title" $title) -]]
-    [[- end -]]
+[[- /* Deploy! (roles) ---------------------------------------------- */ -]]
+[[- $items = append $items (dict "href" "/roles"         "title" "Deploy! 🚀")  -]]
+[[- $cfg := splitFrontMatter (include "/content/role-groups.md") -]]
+[[- range $group := $cfg.Meta.groups -]]
+  [[- range $role := $group.roles -]]
+    [[- $items = append $items (dict "href" (printf "/roles/%s" $role) "title" $role) -]]
   [[- end -]]
+[[- end -]]
 
-[[- else if eq $section "improve" -]]
-  [[- range $name := sortAlpha (listFiles "/content/improve") -]]
-    [[- if and (ne $name "index.md") (hasSuffix ".md" $name) -]]
-      [[- $slug  := trimSuffix ".md" $name -]]
-      [[- $href  := printf "/improve/%s" $slug -]]
-      [[- $page  := splitFrontMatter (include (printf "/content/improve/%s" $name)) -]]
-      [[- $title := $page.Meta.title -]]
-      [[- if not $title -]][[- $title = $slug -]][[- end -]]
-      [[- $items = append $items (dict "href" $href "title" $title) -]]
-    [[- end -]]
+[[- /* Anti-Patterns! ------------------------------------------------ */ -]]
+[[- $items = append $items (dict "href" "/anti-patterns" "title" "Anti-Patterns! 🔻") -]]
+[[- range $name := sortAlpha (listFiles "/content/anti-patterns") -]]
+  [[- if and (ne $name "index.md") (hasSuffix ".md" $name) -]]
+    [[- $slug  := trimSuffix ".md" $name -]]
+    [[- $href  := printf "/anti-patterns/%s" $slug -]]
+    [[- $page  := splitFrontMatter (include (printf "/content/anti-patterns/%s" $name)) -]]
+    [[- $title := $page.Meta.title -]]
+    [[- if not $title -]][[- $title = $slug -]][[- end -]]
+    [[- $items = append $items (dict "href" $href "title" $title) -]]
   [[- end -]]
+[[- end -]]
 
-[[- else if eq $section "roles" -]]
-  [[- $config := splitFrontMatter (include "/content/role-groups.md") -]]
-  [[- range $group := $config.Meta.groups -]]
-    [[- range $role := $group.roles -]]
-      [[- $href := printf "/roles/%s" $role -]]
-      [[- $items = append $items (dict "href" $href "title" $role) -]]
-    [[- end -]]
+[[- /* Improve! ------------------------------------------------------ */ -]]
+[[- $items = append $items (dict "href" "/improve"       "title" "Improve! ✨") -]]
+[[- range $name := sortAlpha (listFiles "/content/improve") -]]
+  [[- if and (ne $name "index.md") (hasSuffix ".md" $name) -]]
+    [[- $slug  := trimSuffix ".md" $name -]]
+    [[- $href  := printf "/improve/%s" $slug -]]
+    [[- $page  := splitFrontMatter (include (printf "/content/improve/%s" $name)) -]]
+    [[- $title := $page.Meta.title -]]
+    [[- if not $title -]][[- $title = $slug -]][[- end -]]
+    [[- $items = append $items (dict "href" $href "title" $title) -]]
   [[- end -]]
 [[- end -]]
 
@@ -88,7 +89,7 @@ Args (passed via Caddy's `include` extras):
 [[- $next := "" -]]
 [[- if ge $foundIdx 0 -]]
   [[- $total := len $items -]]
-  [[- if gt $foundIdx 0 -]][[- $prev = index $items (sub $foundIdx 1) -]][[- end -]]
+  [[- if gt $foundIdx 0           -]][[- $prev = index $items (sub $foundIdx 1) -]][[- end -]]
   [[- if lt $foundIdx (sub $total 1) -]][[- $next = index $items (add $foundIdx 1) -]][[- end -]]
 [[- end -]]
 
