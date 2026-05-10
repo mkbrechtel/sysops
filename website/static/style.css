@@ -72,26 +72,26 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 .site-title:hover { text-decoration: none; }
 .site-nav a { color: var(--fg-muted); margin-left: 1rem; }
 
-/* Layout: sidebar pinned to the viewport's left edge, content gets the
-   remaining space and is centered within its column for readability. */
+/* Layout: the sidebar is fixed to the viewport's left edge so it stays
+   put through any scroll. The content area reserves room with a matching
+   left padding. */
 .layout {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  gap: 0;
-  align-items: start;
+  padding-left: var(--sidebar-w);
 }
 
 /* Sidebar */
 .sidebar {
-  position: sticky;
+  position: fixed;
   top: var(--nav-h);
-  align-self: start;
-  height: calc(100vh - var(--nav-h));
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-w);
   overflow-y: auto;
   padding: var(--pad);
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
   font-size: .95rem;
+  z-index: 5;
 }
 .hamburger,
 .sidebar-backdrop {
@@ -186,7 +186,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
    hidden #sidebar-toggle checkbox in the layout. */
 @media (max-width: 768px) {
   .layout {
-    grid-template-columns: 1fr;
+    padding-left: 0;
   }
 
   /* Hamburger button in the header */
@@ -213,17 +213,19 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 
   /* Off-canvas drawer */
   .sidebar {
-    position: fixed;
     top: 0;
-    left: 0;
-    bottom: 0;
     width: min(85vw, 20rem);
     height: 100vh;
+    padding: 1.25rem 1.25rem 2rem;
     border-right: 1px solid var(--border);
-    border-bottom: none;
     transform: translateX(-100%);
     transition: transform .2s ease;
     z-index: 100;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* The first list shouldn't carry the default browser margin. */
+  .sidebar > ul:first-child {
+    margin-top: 0;
   }
 
   /* Backdrop */
