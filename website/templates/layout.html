@@ -18,20 +18,19 @@ placeholders before invoking this template:
 [[- $title := $page.Meta.title -]]
 [[- if not $hasTitle -]][[- $title = "Cute DevOps!" -]][[- end -]]
 
-[[- /* Detect the current top-level section from the URL.
-       Caddy 2.6 templates have no hasPrefix; we use printf with a
-       precision specifier to take the first N chars and compare. */ -]]
+[[- /* Detect the current top-level section from the URL. */ -]]
 [[- $current := .OriginalReq.URL.Path -]]
+[[- $section := "" -]]
 [[- $sectionLabel := "" -]]
 [[- $sectionIcon  := "" -]]
-[[- if or (eq $current "/patterns") (eq (printf "%.10s" $current) "/patterns/") -]]
-  [[- $sectionLabel = "Patterns!" -]][[- $sectionIcon = "/static/emoji_u1f537.svg" -]]
-[[- else if or (eq $current "/anti-patterns") (eq (printf "%.15s" $current) "/anti-patterns/") -]]
-  [[- $sectionLabel = "Anti-Patterns!" -]][[- $sectionIcon = "/static/emoji_u1f53b.svg" -]]
-[[- else if or (eq $current "/roles") (eq (printf "%.7s" $current) "/roles/") -]]
-  [[- $sectionLabel = "Deploy!" -]][[- $sectionIcon = "/static/emoji_u1f680.svg" -]]
-[[- else if or (eq $current "/improve") (eq (printf "%.9s" $current) "/improve/") -]]
-  [[- $sectionLabel = "Improve!" -]][[- $sectionIcon = "/static/emoji_u2728.svg" -]]
+[[- if or (eq $current "/patterns") (hasPrefix "/patterns/" $current) -]]
+  [[- $section = "patterns" -]][[- $sectionLabel = "Patterns!" -]][[- $sectionIcon = "/static/emoji_u1f537.svg" -]]
+[[- else if or (eq $current "/anti-patterns") (hasPrefix "/anti-patterns/" $current) -]]
+  [[- $section = "anti-patterns" -]][[- $sectionLabel = "Anti-Patterns!" -]][[- $sectionIcon = "/static/emoji_u1f53b.svg" -]]
+[[- else if or (eq $current "/roles") (hasPrefix "/roles/" $current) -]]
+  [[- $section = "roles" -]][[- $sectionLabel = "Deploy!" -]][[- $sectionIcon = "/static/emoji_u1f680.svg" -]]
+[[- else if or (eq $current "/improve") (hasPrefix "/improve/" $current) -]]
+  [[- $section = "improve" -]][[- $sectionLabel = "Improve!" -]][[- $sectionIcon = "/static/emoji_u2728.svg" -]]
 [[- end -]]
 [[- $isHome := eq $current "/" -]]
 <!doctype html>
@@ -130,6 +129,9 @@ placeholders before invoking this template:
             GitHub renders the same files correctly. */ -]]
       [[ markdown (regexReplaceAll `\.md([)#])` $page.Body `$1`) ]]
     </article>
+    [[- if ne $section "" ]]
+    [[ include "/templates/partials/footer-nav.html" $section $current ]]
+    [[- end ]]
     <footer class="page-footer">
       <a href="https://github.com/mkbrechtel/devops/edit/main[[ $edit ]]" rel="noopener">
         Edit this page on GitHub

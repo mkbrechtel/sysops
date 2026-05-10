@@ -455,6 +455,39 @@ body.home .hamburger { display: none; }
   text-align: left;
 }
 
+/* Prev / next nav at the bottom of every section page. */
+.page-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 3rem 0 1rem;
+}
+.page-nav-link {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  padding: 1rem 1.25rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg);
+  text-decoration: none;
+  transition: border-color .12s ease, transform .12s ease;
+}
+.page-nav-link:hover {
+  border-color: var(--accent);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+.page-nav-next { text-align: right; align-items: flex-end; }
+.page-nav-label { font-size: .85rem; color: var(--fg-muted); }
+.page-nav-title { font-size: 1rem; font-weight: 600; }
+.page-nav-spacer { display: block; }
+@media (max-width: 600px) {
+  .page-nav { grid-template-columns: 1fr; }
+  .page-nav-spacer { display: none; }
+}
+
 .page-footer {
   margin-top: 3rem;
   padding-top: 1rem;

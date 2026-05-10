@@ -9,13 +9,13 @@ so the sidebar only renders the listing for the current section.
 
 [[- /* Detect the current top-level section. */ -]]
 [[- $section := "" -]]
-[[- if or (eq $current "/patterns") (eq (printf "%.10s" $current) "/patterns/") -]]
+[[- if or (eq $current "/patterns") (hasPrefix "/patterns/" $current) -]]
   [[- $section = "patterns" -]]
-[[- else if or (eq $current "/anti-patterns") (eq (printf "%.15s" $current) "/anti-patterns/") -]]
+[[- else if or (eq $current "/anti-patterns") (hasPrefix "/anti-patterns/" $current) -]]
   [[- $section = "anti-patterns" -]]
-[[- else if or (eq $current "/roles") (eq (printf "%.7s" $current) "/roles/") -]]
+[[- else if or (eq $current "/roles") (hasPrefix "/roles/" $current) -]]
   [[- $section = "roles" -]]
-[[- else if or (eq $current "/improve") (eq (printf "%.9s" $current) "/improve/") -]]
+[[- else if or (eq $current "/improve") (hasPrefix "/improve/" $current) -]]
   [[- $section = "improve" -]]
 [[- end -]]
 

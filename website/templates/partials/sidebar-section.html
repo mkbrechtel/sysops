@@ -35,7 +35,7 @@ Args (passed via Caddy's `include` extras):
 <h3 class="sidebar-section">[[ $label ]]</h3>
 [[- end ]]
 <ul class="sidebar-list">
-[[- range $name := listFiles $dir ]]
+[[- range $name := sortAlpha (listFiles $dir) ]]
   [[- if ne $name "index.md" ]]
     [[- $readme := printf "%s/%s/README.md" $dir $name -]]
     [[- $direct := printf "%s/%s" $dir $name -]]
