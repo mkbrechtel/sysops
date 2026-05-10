@@ -284,24 +284,14 @@ body.home .hamburger { display: none; }
 }
 .sidebar a:hover    { background: var(--hover-bg); text-decoration: none; }
 
-/* Active item: just a small accent triangle in the top-left corner,
-   not a full-bg fill. Keeps the rest of the item visually quiet. */
+/* Active item: thin accent border around the link instead of a
+   full-bg fill. inset box-shadow draws the border without nudging
+   the link's size. */
 .sidebar a.active {
   background: transparent;
   color: var(--accent);
   font-weight: 600;
-  position: relative;
-}
-.sidebar a.active::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 10px;
-  height: 10px;
-  background: var(--accent);
-  clip-path: polygon(0 0, 100% 0, 0 100%);
-  border-top-left-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 /* Hamburger control — hidden by default; the responsive block below
