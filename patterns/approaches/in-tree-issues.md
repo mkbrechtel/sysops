@@ -78,6 +78,20 @@ on them.
 Each transition is a normal forge action: open MR → review → merge.
 No separate state machine.
 
+### Acceptance semantics
+
+Merging an issue file into `main` is more than paperwork — it's the
+maintainers explicitly accepting that *this issue is part of the
+current development state of the project*. The review bar on an
+`issues/*.md` MR is "do we agree this is ours to think about?",
+separate from "should we ship the implementation?" A rejected issue
+closes the MR without merge; the conversation is preserved on the
+closed MR but the main-line view stays free of wishlist clutter.
+
+That turns `git log -- issues/` into an authoritative roadmap rather
+than an unfiltered backlog: every entry is on the books because the
+team said so.
+
 ### Filing interface (web UI for non-developers)
 
 The pattern *prescribes* providing a one-click way to file an issue
