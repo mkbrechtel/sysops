@@ -148,15 +148,24 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   border-radius: 4px;
   font-size: .9em;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
 }
 .content pre {
   background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 1rem;
-  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
-.content pre code { background: transparent; padding: 0; }
+.content pre code {
+  background: transparent;
+  padding: 0;
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-break: inherit;
+}
 .content blockquote {
   margin: 1rem 0;
   padding: .25rem 1rem;
