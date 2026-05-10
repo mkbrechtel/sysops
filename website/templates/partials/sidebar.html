@@ -28,6 +28,7 @@ so the sidebar only renders the listing for the current section.
 [[- else if eq $section "roles" ]]
   [[- /* Roles are grouped by /content/role-groups.md (YAML front matter).
        Each group becomes a sub-section; entries link to /roles/<name>. */ -]]
+  <h2 class="sidebar-heading">Ansible Roles</h2>
   [[- $config := splitFrontMatter (include "/content/role-groups.md") -]]
   [[- range $group := $config.Meta.groups ]]
   <div class="sidebar-group">

@@ -243,6 +243,14 @@ body.home .hamburger { display: none; }
   z-index: 5;
 }
 
+/* Heading at the top of a section's sidebar listing. */
+.sidebar-heading {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+
 /* Sub-section group within the current section. */
 .sidebar-group {
   margin: 0 0 1.5rem;
