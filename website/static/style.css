@@ -44,7 +44,6 @@
   --border:       #d0d7de;
   --sidebar-bg:   #f6f8fa;
   --code-bg:      #f6f8fa;
-  --backdrop:     rgba(0, 0, 0, .4);
   --hover-bg:     rgba(127, 127, 127, .12);
 
   /* sizes */
@@ -180,10 +179,9 @@ a:hover {
 .sidebar a:hover    { background: var(--hover-bg); text-decoration: none; }
 .sidebar a.active   { background: var(--accent); color: #fff; font-weight: 600; }
 
-/* Drawer controls — hidden by default; the responsive block below
-   flips them on at the mobile breakpoint. */
-.hamburger,
-.sidebar-backdrop { display: none; }
+/* Hamburger control — hidden by default; the responsive block below
+   turns it on at the mobile breakpoint. */
+.hamburger { display: none; }
 
 
 /* =================================================================
@@ -279,62 +277,70 @@ a:hover {
   /* Layout: drop the rail's reserved column. */
   .layout { padding-left: 0; }
 
-  /* Hamburger: snaps into column 1 of the header grid. */
+  /* Hamburger: snaps into column 1 of the header grid. The three
+     spans are absolutely positioned so they can morph into an X
+     when the drawer is open. */
   .hamburger {
     grid-column: 1;
     justify-self: start;
     display: inline-flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 4px;
+    position: relative;
     width: 32px;
     height: 32px;
-    padding: 6px 4px;
     border-radius: 4px;
     cursor: pointer;
     user-select: none;
   }
   .hamburger:hover { background: var(--hover-bg); }
   .hamburger span {
-    display: block;
+    position: absolute;
+    left: 6px;
+    right: 6px;
     height: 2px;
     background: var(--fg);
     border-radius: 2px;
+    transition: top .2s ease, transform .2s ease, opacity .2s ease;
   }
+  .hamburger span:nth-child(1) { top: 10px; }
+  .hamburger span:nth-child(2) { top: 15px; }
+  .hamburger span:nth-child(3) { top: 20px; }
 
-  /* Sidebar becomes an off-canvas drawer (full height, slides in). */
+  /* Sidebar becomes a full-width drawer that sits below the header
+     and slides in from the left. */
   .sidebar {
-    top: 0;
-    width: min(85vw, 20rem);
-    height: 100vh;
-    height: 100dvh;          /* dynamic viewport for mobile UI chrome */
+    top: var(--nav-h);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: auto;
     padding: 1.25rem 1.25rem 2rem;
+    border-right: none;
     transform: translateX(-100%);
     transition: transform .2s ease;
-    z-index: 100;
+    z-index: 50;
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Backdrop: full-viewport label that closes the drawer on tap. */
-  .sidebar-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: var(--backdrop);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .2s ease;
-    z-index: 99;
-  }
+  /* ---- Open state, driven by the hidden #sidebar-toggle checkbox.
+     The hamburger morphs into an X; tapping it again closes the
+     drawer. ------------------------------------------------------- */
 
-  /* Open state, driven by the hidden #sidebar-toggle checkbox. */
   .sidebar-toggle:checked ~ .layout .sidebar {
     transform: translateX(0);
   }
-  .sidebar-toggle:checked ~ .sidebar-backdrop {
-    opacity: 1;
-    pointer-events: auto;
+  .sidebar-toggle:checked ~ .site-header .hamburger span:nth-child(1) {
+    top: 15px;
+    transform: rotate(45deg);
   }
+  .sidebar-toggle:checked ~ .site-header .hamburger span:nth-child(2) {
+    opacity: 0;
+  }
+  .sidebar-toggle:checked ~ .site-header .hamburger span:nth-child(3) {
+    top: 15px;
+    transform: rotate(-45deg);
+  }
+
   /* Lock body scroll while the drawer is open (modern :has support). */
   body:has(.sidebar-toggle:checked) {
     overflow: hidden;
