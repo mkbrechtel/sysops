@@ -12,6 +12,7 @@ COPY Caddyfile          /etc/caddy/Caddyfile
 COPY website/templates/ /srv/templates/
 COPY website/static/    /srv/static/
 COPY patterns/          /srv/content/patterns/
+COPY patterns.md        /srv/content/patterns.md
 COPY README.md          /srv/about.md
 
 EXPOSE 8080
