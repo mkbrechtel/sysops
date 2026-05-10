@@ -56,6 +56,18 @@
 		respond "ok" 200
 	}
 
+	# Dynamic sitemap — no content file; the template enumerates
+	# /content/ at request time.
+	handle /sitemap {
+		rewrite * /templates/sitemap.html
+		templates {
+			mime text/html
+			between "[[" "]]"
+		}
+		header Content-Type "text/html; charset=utf-8"
+		file_server
+	}
+
 	# Root renders the repository's README.md (copied to /srv/about.md
 	# in the container build).
 	handle / {

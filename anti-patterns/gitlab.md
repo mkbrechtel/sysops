@@ -1,5 +1,5 @@
 ---
-title: GitLab 🔻🦊
+title: Don't introduce GitLab as the central DevOps Hub of your organization! 🔻🦊
 ---
 
 <!--

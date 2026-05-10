@@ -1,0 +1,90 @@
+[[- /*
+SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+SPDX-License-Identifier: EUPL-1.2
+
+Dynamically rendered sitemap. Reuses sidebar-section.html and the
+role-groups.md config so the page stays in sync with the rest of
+the navigation without any source-content file.
+*/ -]]
+[[- $current := .OriginalReq.URL.Path -]]
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sitemap | Cute DevOps!</title>
+<link rel="icon" type="image/svg+xml" href="/static/unicorn.svg">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="home">
+<input type="checkbox" id="sidebar-toggle"  class="sidebar-toggle"  hidden>
+<input type="checkbox" id="switcher-toggle" class="switcher-toggle" hidden>
+
+<header class="site-header">
+  <a class="site-title" href="/">
+    <img src="/static/unicorn.svg" alt="">
+    <span>Cute DevOps!</span>
+  </a>
+  <label for="switcher-toggle" class="header-section" role="button" aria-haspopup="menu" tabindex="0">
+    <span>Sections</span>
+    <span class="caret" aria-hidden="true">▾</span>
+  </label>
+  <label for="sidebar-toggle" class="hamburger" role="button" aria-label="Open navigation" tabindex="0">
+    <span></span><span></span><span></span>
+  </label>
+</header>
+
+<label for="switcher-toggle" class="switcher-backdrop" aria-hidden="true"></label>
+<ul class="switcher-menu" role="menu">
+  <li><a href="/patterns"><img src="/static/emoji_u1f537.svg" alt="">Patterns!</a></li>
+  <li><a href="/roles"><img src="/static/emoji_u1f680.svg" alt="">Deploy!</a></li>
+  <li><a href="/dev"><img src="/static/emoji_u1f4bb.svg" alt="">Coding!</a></li>
+  <li><a href="/anti-patterns"><img src="/static/emoji_u1f53b.svg" alt="">Anti-Patterns!</a></li>
+</ul>
+
+<div class="layout">
+  <main class="content">
+    <article>
+      <h1>Sitemap 🗺️</h1>
+
+      <div class="sitemap-grid">
+
+        <div class="sitemap-col">
+          <h2 class="sitemap-heading"><img src="/static/emoji_u1f537.svg" alt=""> Patterns!</h2>
+          [[ include "/templates/partials/sidebar-section.html" "Approaches" "/content/patterns/approaches" "/patterns/approaches" ]]
+          [[ include "/templates/partials/sidebar-section.html" "Development / Frontend" "/content/patterns/development/frontend" "/patterns/development/frontend" ]]
+          [[ include "/templates/partials/sidebar-section.html" "Operation / Deployment" "/content/patterns/operation/deployment" "/patterns/operation/deployment" ]]
+          [[ include "/templates/partials/sidebar-section.html" "Meta" "/content/patterns/meta" "/patterns/meta" ]]
+        </div>
+
+        <div class="sitemap-col">
+          <h2 class="sitemap-heading"><img src="/static/emoji_u1f680.svg" alt=""> Deploy!</h2>
+          [[- $config := splitFrontMatter (include "/content/role-groups.md") ]]
+          [[- range $group := $config.Meta.groups ]]
+          <div class="sidebar-group">
+            <h3 class="sidebar-section">[[ $group.name ]]</h3>
+            <ul class="sidebar-list">
+            [[- range $role := $group.roles ]]
+              <li><a href="/roles/[[ $role ]]">[[ $role ]]</a></li>
+            [[- end ]]
+            </ul>
+          </div>
+          [[- end ]]
+        </div>
+
+        <div class="sitemap-col">
+          <h2 class="sitemap-heading"><img src="/static/emoji_u1f4bb.svg" alt=""> Coding!</h2>
+          [[ include "/templates/partials/sidebar-section.html" "" "/content/dev" "/dev" ]]
+        </div>
+
+        <div class="sitemap-col">
+          <h2 class="sitemap-heading"><img src="/static/emoji_u1f53b.svg" alt=""> Anti-Patterns!</h2>
+          [[ include "/templates/partials/sidebar-section.html" "" "/content/anti-patterns" "/anti-patterns" ]]
+        </div>
+
+      </div>
+    </article>
+  </main>
+</div>
+</body>
+</html>
