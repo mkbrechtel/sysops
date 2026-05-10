@@ -30,6 +30,7 @@ Args (passed via Caddy's `include` extras):
 [[- $current := .OriginalReq.URL.Path -]]
 
 [[- if fileExists $dir ]]
+<div class="sidebar-group">
 [[- if ne $label "" ]]
 <h3 class="sidebar-section">[[ $label ]]</h3>
 [[- end ]]
@@ -53,4 +54,5 @@ Args (passed via Caddy's `include` extras):
   [[- end ]]
 [[- end ]]
 </ul>
+</div>
 [[- end ]]

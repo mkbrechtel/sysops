@@ -43,6 +43,7 @@
   --accent-hover: #1d4ed8;
   --border:       #d0d7de;
   --sidebar-bg:   #f6f8fa;
+  --group-bg:     #ffffff;
   --code-bg:      #f6f8fa;
   --hover-bg:     rgba(127, 127, 127, .12);
 
@@ -62,6 +63,7 @@
     --accent-hover: #79c0ff;
     --border:       #30363d;
     --sidebar-bg:   #161b22;
+    --group-bg:     #0d1117;
     --code-bg:      #161b22;
   }
 }
@@ -174,9 +176,21 @@ a:hover {
   color: var(--fg);
 }
 
+/* Each section listing sits inside a grey card (Astro-docs style):
+   the sub-section heading is the title, items beneath. */
+.sidebar-group {
+  background: var(--group-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .6rem .75rem;
+  margin: 0 0 .75rem;
+}
+.sidebar-group > h3:first-child { margin-top: 0; }
+.sidebar-group > ul:last-child { margin-bottom: 0; }
+
 /* Sub-section headings inside a section listing. */
 .sidebar h3 {
-  margin: 1.25rem 0 .35rem;
+  margin: 0 0 .35rem;
   font-size: .8rem;
   font-weight: 700;
   text-transform: uppercase;
