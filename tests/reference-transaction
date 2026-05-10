@@ -30,6 +30,15 @@ prepared)
             echo "  $oldrev is not an ancestor of $newrev" >&2
             exit 1
         fi
+
+        # main's tip must be a merge commit, so changes always land via an
+        # explicit merge from a side branch rather than as direct commits.
+        parent_count=$(git rev-list --parents -n 1 "$newrev" | awk '{print NF - 1}')
+        if [ "$parent_count" -lt 2 ]; then
+            echo "reference-transaction: refusing update to main: tip is not a merge commit" >&2
+            echo "  $newrev has $parent_count parent(s); main only accepts merge commits as the new tip" >&2
+            exit 1
+        fi
     done
     ;;
 committed)
