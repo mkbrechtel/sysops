@@ -12,7 +12,11 @@ SPDX-License-Identifier: EUPL-1.2
 ## Authors
 
 - **Markus Katharina Brechtel** (2016–2026) — Primary author and maintainer.
-  All code except where noted below.
+
+## Imported Contributions
+
+Earlier work brought in from upstream projects, with original authorship
+preserved and original licenses retained.
 
 - **Philipp Kaluza** (2013–2022) — Contributions to the restic backup
   server and client roles (rps-backup), including TLS support, htpasswd
@@ -37,10 +41,10 @@ SPDX-License-Identifier: EUPL-1.2
 ## License
 
 Most of the project is licensed under EUPL-1.2. The `restic_client` and
-`restic_server` roles are licensed under AGPL-3.0-or-later (see Authors
-above). Third-party files retain their upstream licenses (e.g.
-powerline-go integration snippets are GPL-3.0-only). Per-file SPDX
-headers are authoritative.
+`restic_server` roles are licensed under AGPL-3.0-or-later (see
+[Imported Contributions](#imported-contributions) above). Third-party
+files retain their upstream licenses (e.g. powerline-go integration
+snippets are GPL-3.0-only). Per-file SPDX headers are authoritative.
 
 ## Acknowledgements
 
