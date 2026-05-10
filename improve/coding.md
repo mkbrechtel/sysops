@@ -96,16 +96,26 @@ Before submitting changes, run the following checks in order:
 
 All three checks must pass before changes are considered ready.
 
-### Pre-commit hook
+### Git hooks
 
-`.githooks/pre-commit` runs `ansible-lint` and `reuse lint` against a
-temporary checkout of the staged tree (via `git checkout-index`), so the
-linters see exactly what would be committed regardless of unstaged
-changes in the working tree. Enable it once per clone:
+The `tests/` directory ships the repository's git hooks. `tests/pre-commit`
+runs `reuse lint` and `ansible-lint` against a temporary checkout of the
+staged tree (via `git checkout-index`), so the linters see exactly what
+would be committed regardless of unstaged changes in the working tree.
+
+`tests/post-commit` and `tests/post-receive` keep the active hooks in sync:
+whenever `main` is committed-to in any worktree, or received as a push,
+they install `tests/*` into `$GIT_COMMON_DIR/hooks/`. That directory is
+shared across every worktree of the same repository, so a single update on
+`main` rolls out the new hooks everywhere — no per-clone configuration.
+
+Bootstrap a fresh clone once by copying the scripts in:
 
 ```bash
-git config core.hooksPath .githooks
+install -m 755 tests/* "$(git rev-parse --git-common-dir)/hooks/"
 ```
+
+After that the post-commit / post-receive hooks keep themselves up to date.
 
 ## Testing
 

@@ -3,15 +3,10 @@
 #
 # SPDX-License-Identifier: EUPL-1.2
 
-# Run ansible-lint and reuse lint against a temporary checkout of the staged
-# tree, so the linters see exactly what would be committed (ignoring unstaged
-# changes in the working tree).
+# Lint a copy of the staged tree, so the linters see exactly what would be
+# committed regardless of unstaged changes in the working tree.
 
 set -euo pipefail
-
-if git diff --cached --quiet; then
-    exit 0
-fi
 
 for cmd in ansible-lint reuse; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
