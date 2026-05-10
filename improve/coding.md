@@ -115,7 +115,9 @@ transaction phase:
   the new tree (via `git archive`, so it works in both bare and worktree
   contexts) into `$GIT_COMMON_DIR/hooks/`. That directory is shared across
   every worktree, so a single update on `main` rolls out the new hooks
-  everywhere — no per-clone configuration.
+  everywhere — no per-clone configuration. Also auto-pushes `main` to the
+  `github` remote (if configured) so the public mirror tracks the bare
+  repo; push failures warn but don't block the local update.
 
 Bootstrap a fresh clone once by copying the scripts in:
 
