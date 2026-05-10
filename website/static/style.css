@@ -175,7 +175,7 @@ a:hover {
   display: flex;
   gap: 4px;
   list-style: none;
-  margin: 0 0 1.25rem;
+  margin: 0 0 1.75rem;
   padding: 4px;
   background: var(--switcher-bg);
   border-radius: 8px;
