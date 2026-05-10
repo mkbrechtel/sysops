@@ -10,8 +10,8 @@ SPDX-License-Identifier: EUPL-1.2
 
 Help us improve the library together! This is the place to learn how
 the project works on the inside — coding conventions, contribution
-flow, the release process, and the project's planning surface
-(`issues/*.feature.md`, `issues/*.pattern.md`, `issues/*.bug.md`).
+flow, the release process, and what's landed so far. Pages live in
+the sidebar to the left.
 
 ## Before you contribute — is this library for you?
 
@@ -34,14 +34,3 @@ everything, GitLab as the central hub, deployments via GitHub — your
 feedback is genuinely appreciated, but the community here is
 probably not a good fit for you. We'd rather sharpen our values than
 dilute them.
-
-## Contributor docs
-
-While the dedicated *Improve!* sub-pages are still being written, the
-canonical documents live at the repo root:
-
-- [`CODING.md`](./CODING.md) — coding conventions.
-- [`CONTRIBUTIONS.md`](./CONTRIBUTIONS.md) — authors, license
-  carve-outs, contributor agreement.
-- [`RELEASE.md`](./RELEASE.md) — how a release is cut.
-- [`CHANGELOG.md`](./CHANGELOG.md) — what's landed.

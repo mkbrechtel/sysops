@@ -70,7 +70,7 @@ authoritative; the carve-outs are:
 
 - `roles/restic_client/` and `roles/restic_server/` —
   AGPL-3.0-or-later (carve-out for a co-author's contributions; see
-  `CONTRIBUTIONS.md`).
+  [`improve/contributing.md`](./improve/contributing.md)).
 - Third-party powerline-go integration snippets
   (`roles/bash_shell/files/powerline-go.sh`,
   `roles/zsh_shell/files/powerline-go.zsh`,

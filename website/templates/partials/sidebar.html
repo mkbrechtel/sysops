@@ -43,5 +43,5 @@ so the sidebar only renders the listing for the current section.
   </div>
   [[- end ]]
 [[- else if eq $section "improve" ]]
-  [[- /* improve/ is a stub today — no sub-pages yet. */ -]]
+  [[ include "/templates/partials/sidebar-section.html" "" "/content/improve" "/improve" ]]
 [[- end ]]

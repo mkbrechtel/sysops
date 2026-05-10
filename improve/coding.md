@@ -1,10 +1,13 @@
+---
+title: Coding Guidelines
+---
+
 <!--
 SPDX-FileCopyrightText: 2016-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 
 SPDX-License-Identifier: EUPL-1.2
 -->
 
-# Coding Guidelines
 
 ## Global Variables
 

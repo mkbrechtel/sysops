@@ -31,6 +31,6 @@ Besides the rendered HTML, the site also serves the raw `.md` files so
 LLMs can fetch the markdown directly.
 
 @README.md
-@CODING.md
-@RELEASE.md
+@improve/coding.md
+@improve/release.md
 @GLOBAL.md

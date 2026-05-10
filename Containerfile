@@ -33,6 +33,7 @@ COPY anti-patterns.md   /srv/content/anti-patterns.md
 COPY roles/             /srv/content/roles/
 COPY roles.md           /srv/content/roles.md
 COPY role-groups.md     /srv/content/role-groups.md
+COPY improve/           /srv/content/improve/
 COPY improve.md         /srv/content/improve.md
 COPY README.md          /srv/content/README.md
 

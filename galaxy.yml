@@ -67,7 +67,7 @@ build_ignore:
   - docs
   - todo.txt
   - REUSE.toml
-  - CHANGELOG.md
+  - improve
   - .gitignore
   - experiments
   - image
