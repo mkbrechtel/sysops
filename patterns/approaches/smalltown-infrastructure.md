@@ -66,10 +66,10 @@ boundary isn't "what does the Internet say is best practice" but
 ## Anti-Patterns ⚠️
 
 - ❌ Adopting Kubernetes for three services and one operator.
-- ❌ Reaching for [GitLab](/anti-patterns/gitlab) when a Forgejo +
+- ❌ Reaching for [GitLab](../../anti-patterns/gitlab.md) when a Forgejo +
   Caddy combo would do.
 - ❌ Container-orchestrating workloads that update once a year (see
-  [Don't dockerize mail servers](/anti-patterns/dockerize-mail-servers)).
+  [Don't dockerize mail servers](../../anti-patterns/dockerize-mail-servers.md)).
 
 ## Best Practices 💡
 
@@ -82,6 +82,6 @@ boundary isn't "what does the Internet say is best practice" but
 
 ## Related Patterns 🔗
 
-- [Compose Service Pattern 🐋](/patterns/operation/deployment/compose-service)
-- [Stages Pattern 🎭](/patterns/operation/deployment/stages)
-- [Cuteness Pattern 🌸](/patterns/meta/cuteness)
+- [Compose Service Pattern 🐋](../operation/deployment/compose-service.md)
+- [Stages Pattern 🎭](../operation/deployment/stages.md)
+- [Cuteness Pattern 🌸](../meta/cuteness.md)

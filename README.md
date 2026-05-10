@@ -26,7 +26,7 @@ deployment shapes, and thinking tools. Patterns are organized by
 backup, monitoring), *development* (frontend), and *meta* (how to
 write a pattern, why "cuteness" matters).
 
-→ [Browse the patterns library 🔷](/patterns)
+→ [Browse the patterns library 🔷](./patterns.md)
 
 ## Anti-Patterns! 🔻
 
@@ -36,7 +36,7 @@ systems, or unhappy operators in the long run. Each entry names
 what it is, why it's tempting, and what to do instead — usually a
 pointer back to the [Patterns!](#patterns-) library.
 
-→ [See the anti-patterns 🔻](/anti-patterns)
+→ [See the anti-patterns 🔻](./anti-patterns.md)
 
 ## Deploy! 🚀
 
@@ -52,7 +52,7 @@ ansible-galaxy collection install mkbrechtel.devops
 
 Requirements: Ansible ≥ 2.14.3 on Debian 13 (trixie).
 
-→ [Browse role documentation 🚀](/roles)
+→ [Browse role documentation 🚀](./roles.md)
 
 ## Coding! 💻
 
@@ -61,7 +61,7 @@ conventions, contribution flow, the release process, and the
 project's planning surface (`issues/*.feature.md`,
 `issues/*.pattern.md`, `issues/*.bug.md`).
 
-→ [Read the developer docs 💻](/dev)
+→ [Read the developer docs 💻](./dev.md)
 
 ## License
 

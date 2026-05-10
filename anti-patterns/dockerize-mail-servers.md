@@ -57,7 +57,7 @@ package.
 
 ## Related 🔗
 
-- [Compose Service Pattern](/patterns/operation/deployment/compose-service.md) — the
+- [Compose Service Pattern](../patterns/operation/deployment/compose-service.md) — the
   pattern this is the anti-pattern of, *for stateless services*.
-- [Stages Pattern](/patterns/operation/deployment/stages.md) — for software that *does*
+- [Stages Pattern](../patterns/operation/deployment/stages.md) — for software that *does*
   benefit from containerized stages, mail servers aren't on the list.
