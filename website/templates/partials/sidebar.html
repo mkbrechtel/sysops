@@ -18,13 +18,12 @@ section name as the sidebar's main header.
        a precision specifier to take the first N characters and
        compare. The exact match (no trailing slash) is checked too. */ -]]
 [[- $section := "" -]]
-[[- $sectionLabel := "" -]]
 [[- if or (eq $current "/patterns") (eq (printf "%.10s" $current) "/patterns/") -]]
-  [[- $section = "patterns" -]][[- $sectionLabel = "Patterns" -]]
+  [[- $section = "patterns" -]]
 [[- else if or (eq $current "/roles") (eq (printf "%.7s" $current) "/roles/") -]]
-  [[- $section = "roles" -]][[- $sectionLabel = "Roles" -]]
+  [[- $section = "roles" -]]
 [[- else if or (eq $current "/dev") (eq (printf "%.5s" $current) "/dev/") -]]
-  [[- $section = "dev" -]][[- $sectionLabel = "Dev" -]]
+  [[- $section = "dev" -]]
 [[- end -]]
 
 <ul class="sidebar-top">
@@ -32,10 +31,6 @@ section name as the sidebar's main header.
   <li><a href="/roles"[[ if eq $section "roles" ]] class="active"[[ end ]][[ if eq $current "/roles" ]] aria-current="page"[[ end ]]>Roles</a></li>
   <li><a href="/dev"[[ if eq $section "dev" ]] class="active"[[ end ]][[ if eq $current "/dev" ]] aria-current="page"[[ end ]]>Dev</a></li>
 </ul>
-
-[[- if ne $sectionLabel "" ]]
-<h2 class="sidebar-current-section">[[ $sectionLabel ]]</h2>
-[[- end ]]
 
 [[- if eq $section "patterns" ]]
   [[ include "/templates/partials/sidebar-section.html" "Development / Frontend" "/content/patterns/development/frontend" "/patterns/development/frontend" ]]
