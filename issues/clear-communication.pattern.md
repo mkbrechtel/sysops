@@ -24,6 +24,10 @@ Make the project's documentation legible at a glance. Land on the smallest text 
 
 Inverse: walls of plausible-looking text. See [Cuteness 🌸](../patterns/meta/cuteness.md) on long unreviewed AI slop.
 
+## Aside: agents may benefit too
+
+Brief docs may also sharpen agents reading the project. Brevity-constrained LLMs improve measurably in accuracy on some benchmarks — the "caveman mode" finding. Same compression that helps humans seems to help agents. See [caveman (Claude Code skill)](https://github.com/JuliusBrussee/caveman) and [Better Stack's writeup](https://betterstack.com/community/guides/ai/caveman-llm/) for context.
+
 ## Acceptance
 
 Promote to `patterns/meta/clear-communication.md` once a couple of existing patterns reference it explicitly.
