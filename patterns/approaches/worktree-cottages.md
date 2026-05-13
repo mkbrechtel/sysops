@@ -42,15 +42,16 @@ and the bare repo is the village hall they all push to.
 ```
 /srv/repos/<project>.git              ← bare repo, group-owned
 /srv/projects/<project>/
+├── README.md                         ← village notice board (see below)
+├── CLAUDE.md → README.md             ← symlink: same doc, two readers
 ├── bin/new-worktree                  ← helper humans + agents share
-├── CLAUDE.md                         ← tells agents to use EnterWorktree
 ├── .claude/
 │   ├── settings.json                 ← wires WorktreeCreate/Remove hooks
 │   └── hooks/
 │       ├── worktree-create           ← delegates to bin/new-worktree
 │       └── worktree-remove
 └── work/                             ← 3775 (rwxrwsr-t): setgid + sticky
-    ├── main/                         ← long-lived; group-readable
+    ├── main/                         ← the maintainer's cottage
     ├── alice/feature-x/              ← owned by alice
     └── claude/refactor-auth/         ← owned by the user driving Claude
 ```
@@ -60,6 +61,62 @@ cottages inherit the group; the sticky bit means nobody can delete
 a neighbour's leaf. Each cottage itself is created group-writable,
 then immediately stripped to `g-w` so others can read but not
 modify it.
+
+`work/main/` is **the maintainer's cottage**, not a shared scratch
+area. It's where the person responsible for the project decides
+which branches get merged into `main` — the only cottage from which
+that decision is allowed to land. Everyone else can read it, but
+only the maintainer pushes from it.
+
+### The village notice board (`README.md`)
+
+The project root has a `README.md` written for **humans walking up
+to a shell prompt for the first time**. It explains:
+
+- where the bare repo lives,
+- how the `work/` layout works,
+- how to create a cottage by hand with plain `git worktree`,
+- how to create one through the helper,
+- how Claude users spawn one with `claude --worktree`,
+- who owns `work/main/` and what that means for merging.
+
+`CLAUDE.md` is a **symlink to `README.md`**. Agents and humans read
+the same instructions; keeping one file means they can't drift apart.
+
+A minimal README body — the bit operators actually need — looks
+like this:
+
+````markdown
+## Making your own cottage
+
+Pick a branch name (think `feature/cute-thing` or
+`fix/login-redirect`). Then either:
+
+```bash
+# Raw git, for operators who like to see the mechanism:
+git -C /srv/repos/foo.git worktree add -b feature/cute-thing \
+    /srv/projects/foo/work/feature/cute-thing main
+chmod -R g-w /srv/projects/foo/work/feature/cute-thing
+
+# Or the helper, which does both steps + sanitises the name:
+bin/new-worktree feature/cute-thing
+
+# Or, if you're a Claude user, ask Claude to do it:
+claude --worktree feature/cute-thing
+```
+
+All three paths produce the same thing: a fresh worktree at
+`work/<branch>` on a fresh branch off `main`, owned by you, readable
+by the group.
+
+## Who merges what
+
+`work/main/` is the maintainer's cottage. To get your branch merged,
+open an MR / PR against `main`; the maintainer reviews from their
+cottage and lands the merge there. Don't push to `main` from your
+own cottage — the bare repo's reference-transaction hook will reject
+non-fast-forward + non-merge updates anyway.
+````
 
 ### One branch ⇄ one cottage
 
@@ -101,6 +158,19 @@ That convergence is the whole point: the agent's `EnterWorktree`
 tool and a human typing `bin/new-worktree` end up running identical
 code, producing identical filesystem layouts, with identical
 ownership rules.
+
+Users have two entry points into a Claude session inside a cottage:
+
+```bash
+# Spawn a fresh Claude session that creates and enters a new cottage:
+claude --worktree my-task          # explicit branch name
+claude --worktree                  # let Claude pick a random one
+```
+
+…or from inside an existing session, ask Claude to call
+`EnterWorktree`. Both flow through the same WorktreeCreate hook,
+which calls the same `bin/new-worktree`. One code path, three
+front doors.
 
 ```json
 {
@@ -179,9 +249,13 @@ hall without extra services.
 
 - **Name agent cottages with a prefix** (`claude/<task>`,
   `bot/<task>`) so `ls work/` shows at a glance who's doing what.
-- **Keep `work/main/` around as the shared read-only checkout** —
-  it's the cheap way to grep the canonical tree without leaving
-  your own cottage.
+- **`work/main/` is the maintainer's cottage**, not a shared
+  scratch area. Treat it as read-only from any other cottage;
+  merges land there because that's where the merge decision is
+  made.
+- **Same README for humans and agents.** Make `CLAUDE.md` a symlink
+  to `README.md` so the village notice board and the agent
+  instructions can't drift apart.
 - **Pair this with [[in-tree-issues]]** so the same merge ritual
   governs both code and the issues that describe it.
 - **Make the helper script the single source of truth.** Don't let
@@ -205,8 +279,14 @@ hall without extra services.
 - [ ] Add `bin/new-worktree` with name sanitisation, ownership
   check, branch-from-base creation, and a final `chmod -R g-w` on
   the cottage.
-- [ ] Add a `work/main/` cottage on the default branch as the
-  shared read-only checkout.
+- [ ] Add `work/main/` as the maintainer's cottage. Make sure the
+  maintainer (not the `devops` group) owns it.
+- [ ] Write `README.md` at the project root with: where the bare
+  repo lives, raw `git worktree add` example, the `bin/new-worktree`
+  helper, the `claude --worktree` entry point, and the
+  who-merges-what rule for `work/main/`.
+- [ ] Symlink `CLAUDE.md → README.md` so humans and agents read the
+  same notice board.
 
 ### Wire the agent path
 
@@ -216,8 +296,9 @@ hall without extra services.
   stdin and shells out to `bin/new-worktree`.
 - [ ] Add `.claude/hooks/worktree-remove` that refuses any path
   outside `work/` and then calls `git worktree remove --force`.
-- [ ] Add a top-level `CLAUDE.md` telling agents to use
-  `EnterWorktree` instead of editing a shared cottage.
+- [ ] Confirm the `CLAUDE.md → README.md` symlink covers the
+  agent-side instructions too (use `EnterWorktree` or
+  `claude --worktree`, never edit a cottage you don't own).
 
 ### Protect the village hall
 
