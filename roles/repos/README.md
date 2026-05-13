@@ -22,7 +22,7 @@ repos:
     group: devops                   # who can spawn treehouses (defaults to repos_default_group)
     owner: root                     # who owns policy files (defaults to repos_default_owner)
     description: "A cute project."  # optional; written to bare repo's `description`
-    with_treehouse_layout: true     # per-repo override of repos_with_treehouse_layout
+    with_treehouses: true           # per-repo override of repos_with_treehouses
     with_claude_hooks: true         # per-repo override of repos_with_claude_hooks
 ```
 
@@ -30,7 +30,7 @@ Defaults (see `defaults/main.yml`):
 
 - `repos_default_group: devops`
 - `repos_default_owner: root`
-- `repos_with_treehouse_layout: true`
+- `repos_with_treehouses: true`
 - `repos_with_claude_hooks: true`
 
 ## Example
