@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: EUPL-1.2
+
+---
+- name: Deploy cute-devops library as a bare git repo with treehouses layout
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: false
+  vars:
+    repos:
+      - name: cute-devops
+        path: /srv/repos/cute-devops.git
+        group: devops
+        owner: root
+        description: "Cute DevOps Patterns! — Ansible roles + patterns. https://devops.patterns.how"
+  roles:
+    - role: repos

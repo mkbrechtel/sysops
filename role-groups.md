@@ -60,6 +60,9 @@ groups:
       - webhook_server
       - test_deploy_ohai
       - test_deploy_fail
+  - name: Repositories
+    roles:
+      - repos
   - name: Tooling
     roles:
       - ansible

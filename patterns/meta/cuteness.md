@@ -28,6 +28,7 @@ The key to implementing cuteness is to identify areas where complexity, stress, 
 - Intimidating interfaces
 - Cold or inhuman environments
 - Rigid or formal communication
+- Long, unreviewed AI slop on main — a wall of plausible-looking output that nobody actually reviewed or curated.
 
 ## Tips 💡
 - Start small and gradually add cute elements
