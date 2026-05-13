@@ -218,6 +218,10 @@ Beyond worktree lifecycle, the `.claude/` directory ships permissions, hooks, an
 - [ ] Add `pre-receive` / `update` hooks for CI and lint that every push must satisfy.
 - [ ] Auto-push `main` to your public mirrors from the same hook.
 
+## Possible Implementations 🛠️
+
+- [`mkbrechtel.devops.repos`](../../roles/repos/README.md) — scaffolds a bare git repo with the treehouses layout: `treehouses/` at `chmod 3775`, group ownership, `core.sharedRepository=group`, a starter `README.md`, the `CLAUDE.md → README.md` symlink, and the `.claude/` hook scripts.
+
 ## Related Patterns 🔗
 
 - [Smalltown Infrastructure 🏘️](./smalltown-infrastructure.md) — the bigger village this treehouse sits in: small, legible, operable by the team you actually have.

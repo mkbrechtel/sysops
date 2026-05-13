@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: EUPL-1.2
+
+---
+repos_default_group: devops
+repos_default_owner: root
+repos_with_treehouse_layout: true
+repos_with_claude_hooks: true

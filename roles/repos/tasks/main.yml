@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#
+# SPDX-License-Identifier: EUPL-1.2
+
+---
+- name: Assert repos is defined and iterable
+  ansible.builtin.assert:
+    that:
+      - repos is defined
+      - repos is iterable
+    fail_msg: "repos must be defined as a list of repo definitions"
+
+- name: Set up each bare repository
+  ansible.builtin.include_tasks: repo.yml
+  loop: "{{ repos }}"
+  loop_control:
+    loop_var: repo
+    label: "{{ repo.name | default(repo.path | basename) }}"
