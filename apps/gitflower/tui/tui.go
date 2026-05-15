@@ -398,9 +398,12 @@ func (m *model) updateTree(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		m.treePrev()
 	case "tab":
-		m.sect = section((int(m.sect) + 1) % 4)
+		m.sect = section((int(m.sect) + 1) % numSections)
 	case "shift+tab":
-		m.sect = section((int(m.sect) + 3) % 4)
+		m.sect = section((int(m.sect) + numSections - 1) % numSections)
+	case " ", "space":
+		// Space in section mode: drill in to line mode on the current file.
+		m.openSelectedItem()
 	case "i":
 		// New issue.
 		m.openEdit(editIssue, "", -1, -1, "")
@@ -424,10 +427,15 @@ func (m *model) updateTree(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case "right", "l", "enter":
 		m.openSelectedItem()
 	default:
-		// Peek: scroll the right pane.
+		// Peek: scroll the right pane. Keep the (invisible) line cursor
+		// at the top of the new view so entering line mode lands on a
+		// visible line.
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
 		m.updateDisplayed()
+		if m.sect == sectionChanges {
+			m.hunkAtTopOfView()
+		}
 		return m, cmd
 	}
 	return m, nil
