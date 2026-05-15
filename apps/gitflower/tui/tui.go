@@ -219,7 +219,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshViewport()
 		return m, m.drainCmds()
 	case delayedReadMsg:
-		if m.pendingReads[msg.anchor] && m.isHunkCurrentlyVisible(msg.anchor) {
+		// The hunk's rows were all visible at some point and the delay
+		// elapsed; mark read unconditionally. (Cancellation has already
+		// happened if the user pressed `u`, which clears pendingReads.)
+		if m.pendingReads[msg.anchor] {
 			m.sess.MarkRead(msg.anchor)
 			_ = m.sess.Save()
 		}
@@ -557,6 +560,10 @@ func (m *model) updateDiff(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.ScrollLeft(4)
 			return m, nil
 		}
+		// Park the section cursor on the file we were just reviewing so
+		// the user lands back on it in section mode.
+		m.sect = sectionChanges
+		m.sectIdx[sectionChanges] = m.fileIdx
 		m.mode = modeTree
 		m.refreshViewport()
 	case "right", "l":
@@ -972,6 +979,14 @@ func (m *model) updateFile(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.ScrollLeft(4)
 			return m, nil
 		}
+		// Park the section cursor on the file we were just reviewing.
+		m.sect = sectionFileReview
+		for i, fr := range m.sess.FileReviews() {
+			if fr.Path == m.filePath {
+				m.sectIdx[sectionFileReview] = i
+				break
+			}
+		}
 		m.mode = modeTree
 		m.refreshViewport()
 	case "right", "l":
@@ -1277,19 +1292,6 @@ func (m *model) updateDisplayed() {
 	}
 }
 
-// isHunkCurrentlyVisible reports whether the hunk identified by anchor is
-// fully within the viewport at this very moment (regardless of history).
-func (m *model) isHunkCurrentlyVisible(anchor review.Anchor) bool {
-	top := m.viewport.YOffset()
-	bot := top + m.viewport.Height() - 1
-	for _, r := range m.hunkRanges {
-		if r.anchor != anchor {
-			continue
-		}
-		return r.topRow >= top && r.botRow <= bot
-	}
-	return false
-}
 
 func (m *model) refreshViewport() {
 	var body string
