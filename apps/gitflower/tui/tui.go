@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
@@ -30,9 +31,18 @@ import (
 	"gitflower/review"
 )
 
-func Run(sess *review.ReviewSession) error {
+// DefaultReadDelay is how long a hunk must remain visible before
+// the TUI emits a ReadStart/ReadEnd. Override at TUI construction.
+const DefaultReadDelay = 1 * time.Second
+
+// Run launches the TUI on sess. readDelay controls how long a hunk must stay
+// visible before the read marker is emitted; pass 0 for DefaultReadDelay.
+func Run(sess *review.ReviewSession, readDelay time.Duration) error {
 	root, _ := gitRoot()
-	m := newModel(sess, root)
+	if readDelay <= 0 {
+		readDelay = DefaultReadDelay
+	}
+	m := newModel(sess, root, readDelay)
 	_, err := tea.NewProgram(m).Run()
 	return err
 }
@@ -147,10 +157,18 @@ type model struct {
 	hunkRanges []hunkRange
 	displayed  map[review.Anchor]map[int]bool
 
+	// Delayed read marking.
+	readDelay    time.Duration
+	pendingReads map[review.Anchor]bool // anchor has a scheduled read tick
+
+	// queuedCmds accumulate Cmds produced by non-Cmd-returning helpers
+	// (refreshViewport, updateDisplayed); Update batches and drains them.
+	queuedCmds []tea.Cmd
+
 	status string
 }
 
-func newModel(sess *review.ReviewSession, root string) *model {
+func newModel(sess *review.ReviewSession, root string, readDelay time.Duration) *model {
 	files := review.ParseDiff(sess.Scope.RawDiff)
 
 	ta := textarea.New()
@@ -166,18 +184,20 @@ func newModel(sess *review.ReviewSession, root string) *model {
 	treeFiles, _ := gitTreeFiles(sess.Scope.TipSHA)
 
 	m := &model{
-		sess:       sess,
-		root:       root,
-		files:      files,
-		treeFiles:  treeFiles,
-		mode:       modeTree,
-		sect:       sectionChanges,
-		editCmtIdx: -1,
-		editIssIdx: -1,
-		textarea:   ta,
-		title:      ti,
-		viewport:   vp,
-		displayed:  map[review.Anchor]map[int]bool{},
+		sess:         sess,
+		root:         root,
+		files:        files,
+		treeFiles:    treeFiles,
+		mode:         modeTree,
+		sect:         sectionChanges,
+		editCmtIdx:   -1,
+		editIssIdx:   -1,
+		textarea:     ta,
+		title:        ti,
+		viewport:     vp,
+		displayed:    map[review.Anchor]map[int]bool{},
+		readDelay:    readDelay,
+		pendingReads: map[review.Anchor]bool{},
 	}
 	return m
 }
@@ -188,30 +208,56 @@ func newModel(sess *review.ReviewSession, root string) *model {
 
 func (m *model) Init() tea.Cmd { return nil }
 
+// delayedReadMsg fires `readDelay` after a hunk first became fully visible.
+// If the hunk is still pending (not user-unread) AND currently in the
+// viewport, we mark it read.
+type delayedReadMsg struct{ anchor review.Anchor }
+
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.resize()
 		m.refreshViewport()
-		return m, nil
+		return m, m.drainCmds()
+	case delayedReadMsg:
+		if m.pendingReads[msg.anchor] && m.isHunkCurrentlyVisible(msg.anchor) {
+			m.sess.MarkRead(msg.anchor)
+			_ = m.sess.Save()
+		}
+		delete(m.pendingReads, msg.anchor)
+		return m, m.drainCmds()
 	}
 
+	var sub tea.Model = m
+	var cmd tea.Cmd
 	if m.confirmQuit {
-		return m.updateConfirmQuit(msg)
+		sub, cmd = m.updateConfirmQuit(msg)
+	} else if m.edit != editNone {
+		sub, cmd = m.updateEdit(msg)
+	} else {
+		switch m.mode {
+		case modeTree:
+			sub, cmd = m.updateTree(msg)
+		case modeDiff:
+			sub, cmd = m.updateDiff(msg)
+		case modeFile:
+			sub, cmd = m.updateFile(msg)
+		}
 	}
-	if m.edit != editNone {
-		return m.updateEdit(msg)
+	if q := m.drainCmds(); q != nil {
+		cmd = tea.Batch(q, cmd)
 	}
-	switch m.mode {
-	case modeTree:
-		return m.updateTree(msg)
-	case modeDiff:
-		return m.updateDiff(msg)
-	case modeFile:
-		return m.updateFile(msg)
+	return sub, cmd
+}
+
+func (m *model) drainCmds() tea.Cmd {
+	if len(m.queuedCmds) == 0 {
+		return nil
 	}
-	return m, nil
+	cmds := m.queuedCmds
+	m.queuedCmds = nil
+	return tea.Batch(cmds...)
 }
 
 func (m *model) resize() {
@@ -540,7 +586,11 @@ func (m *model) updateDiff(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a := m.currentAnchor()
 		m.sess.MarkUnread(a)
 		delete(m.displayed, a)
+		delete(m.pendingReads, a) // cancel pending delayed-read for this anchor
 		m.save("marked unread")
+	case " ", "space":
+		// Walk: advance one step (hunk-by-hunk, file-by-file).
+		m.advanceHunk()
 	case "g", "+":
 		m.applyMarker(review.MarkerGood)
 	case "b", "-":
@@ -1033,7 +1083,6 @@ func (m *model) isHunkFullyDisplayed(a review.Anchor) bool {
 func (m *model) updateDisplayed() {
 	top := m.viewport.YOffset()
 	bot := top + m.viewport.Height() - 1
-	dirtied := false
 	for _, r := range m.hunkRanges {
 		set := m.displayed[r.anchor]
 		if set == nil {
@@ -1063,14 +1112,30 @@ func (m *model) updateDisplayed() {
 				break
 			}
 		}
-		if full {
-			m.sess.MarkRead(r.anchor)
-			dirtied = true
+		if full && !m.pendingReads[r.anchor] {
+			// Schedule a delayed read; the actual MarkRead happens when
+			// the tick fires AND the hunk is still currently visible.
+			m.pendingReads[r.anchor] = true
+			anchor := r.anchor
+			m.queuedCmds = append(m.queuedCmds, tea.Tick(m.readDelay, func(time.Time) tea.Msg {
+				return delayedReadMsg{anchor: anchor}
+			}))
 		}
 	}
-	if dirtied {
-		_ = m.sess.Save()
+}
+
+// isHunkCurrentlyVisible reports whether the hunk identified by anchor is
+// fully within the viewport at this very moment (regardless of history).
+func (m *model) isHunkCurrentlyVisible(anchor review.Anchor) bool {
+	top := m.viewport.YOffset()
+	bot := top + m.viewport.Height() - 1
+	for _, r := range m.hunkRanges {
+		if r.anchor != anchor {
+			continue
+		}
+		return r.topRow >= top && r.botRow <= bot
 	}
+	return false
 }
 
 func (m *model) refreshViewport() {
@@ -1203,7 +1268,7 @@ func helpFor(m *model) string {
 		if m.diffLine {
 			return "j/k line  alt+j/k extend  c/!/Enter comment  a/? question  g/b mark  e edit comment  ←/h back  q quit"
 		}
-		return "j next  k prev  →/l lines  ←/h tree  c comment  a question  g/b mark  u unread  e edit comment  >/< verdict  s save  q quit"
+		return "j/Space next  k prev  →/l lines  ←/h tree  c comment  a question  g/b mark  u unread  e edit  >/< verdict  s save  q quit"
 	case modeFile:
 		return "j/k line  alt+j/k extend  c/!/Enter comment  a/? question  e edit comment  ←/h tree  q quit"
 	}
@@ -1212,31 +1277,30 @@ func helpFor(m *model) string {
 
 func (m *model) viewSidebar() string {
 	w := sidebarWidth(m.width)
-	var sb strings.Builder
+
+	// Render every section + every item without any item cap. Track the
+	// row index where the cursor lands so we can window-scroll when the
+	// rendered content exceeds the available height.
+	var lines []string
+	cursorRow := 0
 	for _, sec := range []section{sectionSources, sectionVerdicts, sectionIssues, sectionChanges, sectionCommits, sectionFileReview} {
 		items := m.sectionItems(sec)
 		hdr := fmt.Sprintf("%s (%d)", sec.Label(), len(items))
 		if m.mode == modeTree && m.sect == sec {
-			sb.WriteString(styleFocused.Render(hdr) + "\n")
+			lines = append(lines, styleFocused.Render(hdr))
 		} else {
-			sb.WriteString(styleSectHdr.Render(hdr) + "\n")
+			lines = append(lines, styleSectHdr.Render(hdr))
 		}
-		// Show items, capping each section at 8 for sidebar density.
-		cap := 8
 		for i, item := range items {
-			if i >= cap {
-				sb.WriteString(styleDim.Render(fmt.Sprintf("  … +%d more", len(items)-cap)) + "\n")
-				break
-			}
 			marker := "  "
 			if m.mode == modeTree && m.sect == sec && i == m.sectIdx[sec] {
 				marker = "▶ "
+				cursorRow = len(lines)
 			}
 			line := marker + truncate(item, w-3)
 			if m.mode == modeTree && m.sect == sec && i == m.sectIdx[sec] {
 				line = styleCursor.Render(line)
 			}
-			// Read-state annotation for Diffs only.
 			if sec == sectionChanges {
 				r, t := m.fileReadStats(i)
 				if t > 0 {
@@ -1248,11 +1312,26 @@ func (m *model) viewSidebar() string {
 					}
 				}
 			}
-			sb.WriteString(line + "\n")
+			lines = append(lines, line)
 		}
-		sb.WriteString("\n")
+		lines = append(lines, "")
 	}
-	return lipgloss.NewStyle().Width(w).Render(sb.String())
+
+	// Window the rendered sidebar to fit the available height.
+	available := max(3, m.height-4)
+	if len(lines) > available {
+		// Keep the cursor at roughly the third-of-height position.
+		top := cursorRow - available/3
+		if top < 0 {
+			top = 0
+		}
+		if top+available > len(lines) {
+			top = len(lines) - available
+		}
+		lines = lines[top : top+available]
+	}
+
+	return lipgloss.NewStyle().Width(w).Render(strings.Join(lines, "\n"))
 }
 
 func (m *model) fileReadStats(idx int) (read, total int) {

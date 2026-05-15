@@ -77,8 +77,8 @@ func ScopeFor(branch, base string) (*Scope, error) {
 			continue
 		}
 		short := parts[0]
-		if len(short) > 12 {
-			short = short[:12]
+		if len(short) > 7 {
+			short = short[:7]
 		}
 		// Fetch the per-commit patch (mbox-style format-patch output).
 		patch, _ := gitOut("format-patch", "-1", "--stdout", "--no-signature",
