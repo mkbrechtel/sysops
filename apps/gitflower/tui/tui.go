@@ -19,6 +19,7 @@ package tui
 import (
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -589,8 +590,7 @@ func (m *model) updateDiff(msg tea.Msg) (tea.Model, tea.Cmd) {
 		delete(m.pendingReads, a) // cancel pending delayed-read for this anchor
 		m.save("marked unread")
 	case " ", "space":
-		// Walk: advance one step (hunk-by-hunk, file-by-file).
-		m.advanceHunk()
+		m.spaceWalk()
 	case "g", "+":
 		m.applyMarker(review.MarkerGood)
 	case "b", "-":
@@ -753,6 +753,112 @@ func (m *model) selectionNewLines(h *review.Hunk) (start, end int) {
 	return
 }
 
+// spaceWalk implements the "page-walk with overlap → last line → next file"
+// behaviour described in the spec. Each Space press:
+//   - if viewport is not at the bottom of the current file's content,
+//     scroll down by viewport_height - 5 lines (5-line overlap from the
+//     previous view's bottom), put the cursor at the top of the new view
+//   - else if the cursor is not on the last hunk, place it on the last hunk
+//   - else advance to the next file in the Changes list (or to the next
+//     FileReview in modeFile)
+func (m *model) spaceWalk() {
+	// Bottom of viewport content?
+	if !m.viewport.AtBottom() {
+		h := m.viewport.Height()
+		step := h - 5
+		if step < 1 {
+			step = 1
+		}
+		m.viewport.SetYOffset(m.viewport.YOffset() + step)
+		m.updateDisplayed()
+		// Move cursor to whatever's at the top of the new view so it
+		// stays selected when the user keeps pressing space.
+		m.hunkAtTopOfView()
+		return
+	}
+	// At bottom: ensure cursor is on the last hunk before advancing.
+	f := m.currentFile()
+	last := len(f.Hunks) - 1
+	if m.hunkIdx < last {
+		m.hunkIdx = last
+		if m.diffLine {
+			m.lineCursor = len(f.Hunks[last].Lines) - 1
+			m.selStart, m.selEnd = m.lineCursor, m.lineCursor
+		}
+		m.refreshViewport()
+		return
+	}
+	// Already on the last hunk and at the bottom; advance to next file.
+	if m.fileIdx+1 < len(m.files) {
+		m.fileIdx++
+		m.hunkIdx = 0
+		m.diffLine = false
+		m.refreshViewport()
+		return
+	}
+	m.status = "end of changes"
+}
+
+// spaceWalkFile is the file-mode counterpart of spaceWalk.
+func (m *model) spaceWalkFile() {
+	if !m.viewport.AtBottom() {
+		h := m.viewport.Height()
+		step := h - 5
+		if step < 1 {
+			step = 1
+		}
+		newTop := m.viewport.YOffset() + step
+		m.viewport.SetYOffset(newTop)
+		// Cursor follows to roughly the top of the new view.
+		if newTop < len(m.fileLines) {
+			m.fileLineCursor = newTop
+			m.fileSelStart, m.fileSelEnd = newTop, newTop
+		}
+		return
+	}
+	// At bottom of file: cursor → last line first.
+	last := len(m.fileLines) - 1
+	if last >= 0 && m.fileLineCursor < last {
+		m.fileLineCursor = last
+		m.fileSelStart, m.fileSelEnd = last, last
+		m.refreshViewport()
+		return
+	}
+	// On last line and at bottom: advance to next FileReview.
+	frs := m.sess.FileReviews()
+	for i, fr := range frs {
+		if fr.Path == m.filePath && i+1 < len(frs) {
+			next := frs[i+1]
+			m.filePath = next.Path
+			m.fileLines, _ = gitFileLines(m.sess.Scope.TipSHA, m.filePath)
+			m.fileLineCursor = 0
+			m.fileSelStart, m.fileSelEnd = 0, 0
+			m.refreshViewport()
+			return
+		}
+	}
+	m.status = "end of file review"
+}
+
+// hunkAtTopOfView sets hunkIdx to whichever hunk now occupies the top of the
+// viewport, so the cursor visually tracks the scroll position.
+func (m *model) hunkAtTopOfView() {
+	top := m.viewport.YOffset()
+	bestIdx := m.hunkIdx
+	for i, r := range m.hunkRanges {
+		if r.topRow <= top && r.botRow >= top {
+			bestIdx = i
+			break
+		}
+		if r.topRow > top {
+			break
+		}
+	}
+	if bestIdx != m.hunkIdx {
+		m.hunkIdx = bestIdx
+	}
+}
+
 func (m *model) advanceHunk() {
 	cur := m.currentHunk()
 	if cur != nil {
@@ -853,6 +959,8 @@ func (m *model) updateFile(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.fileLineCursor = max(0, len(m.fileLines)-1)
 		m.fileSelStart, m.fileSelEnd = m.fileLineCursor, m.fileLineCursor
 		m.refreshViewport()
+	case " ", "space":
+		m.spaceWalkFile()
 	case "c", "!", "enter":
 		m.openCommentEdit()
 		return m, m.textarea.Focus()
@@ -1239,14 +1347,9 @@ func (m *model) View() tea.View {
 func (m *model) modeName() string {
 	switch m.mode {
 	case modeTree:
-		return "Tree[" + m.sect.Label() + "]"
-	case modeDiff:
-		if m.diffLine {
-			return "Diff[line]"
-		}
-		return "Diff"
-	case modeFile:
-		return "File"
+		return "Section[" + m.sect.Label() + "]"
+	case modeDiff, modeFile:
+		return "Line[" + m.sect.Label() + "]"
 	}
 	return "?"
 }
@@ -1432,6 +1535,7 @@ func renderFileDiff(m *model) (body string, ranges []hunkRange, cursorRow int) {
 			}
 		}
 
+		newLine := h.NewStart
 		for li, ln := range h.Lines {
 			var styled string
 			switch ln.Kind {
@@ -1458,18 +1562,23 @@ func renderFileDiff(m *model) (body string, ranges []hunkRange, cursorRow int) {
 				sb.WriteString(rs)
 				row += strings.Count(rs, "\n")
 			}
+
+			// Inline events anchored to this new-side line (Comment, Question,
+			// Like, Dislike). Only `+` and ` ` lines advance newLine.
+			if ln.Kind != review.LineDelete {
+				rs := renderInlineEventsForLine(m, f.Path, newLine)
+				sb.WriteString(rs)
+				row += strings.Count(rs, "\n")
+				newLine++
+			}
 		}
 
-		// Existing comments anchored to this anchor or any sub-anchor of this file
-		// that lies within this hunk's line range.
-		for _, c := range m.sess.Comments() {
-			if !anchorBelongsToHunk(c.Anchor, f.Path, &h) {
-				continue
-			}
-			rs := renderInlineComment(c)
-			sb.WriteString(rs)
-			row += strings.Count(rs, "\n")
-		}
+		// Hunk-anchored events (anchored to "path:newStart,newLines" exactly).
+		// These cover the whole hunk and render at its end.
+		rs := renderInlineEventsForHunk(m, f.Path, h.NewStart, h.NewLines)
+		sb.WriteString(rs)
+		row += strings.Count(rs, "\n")
+
 		sb.WriteString("\n")
 		row++
 
@@ -1619,13 +1728,75 @@ func renderInlineComment(c review.Comment) string {
 	for i, ln := range lines {
 		var prefix string
 		if i == 0 {
-			prefix = "    " + icon + " " + string(c.Anchor) + " — " + c.Author + ": "
+			prefix = "    " + icon + " " + c.Author + ": "
 		} else {
 			prefix = "      "
 		}
 		sb.WriteString(styleDim.Render(prefix+ln) + "\n")
 	}
 	return sb.String()
+}
+
+// renderInlineEventsForLine renders all events anchored to a specific
+// new-side line of `path`. Comment/Question/Like/Dislike all show inline.
+func renderInlineEventsForLine(m *model, path string, newLine int) string {
+	var sb strings.Builder
+	// Comments and questions.
+	for _, c := range m.sess.Comments() {
+		if eventAnchoredToLine(c.Anchor, path, newLine) {
+			sb.WriteString(renderInlineComment(c))
+		}
+	}
+	// Like / Dislike via markers map.
+	for _, a := range m.sess.MarkerAnchors() {
+		if !eventAnchoredToLine(a, path, newLine) {
+			continue
+		}
+		switch m.sess.Marker(a) {
+		case review.MarkerGood:
+			sb.WriteString(styleMarkGood.Render("    👍 "+m.sess.Reviewer) + "\n")
+		case review.MarkerBad:
+			sb.WriteString(styleMarkBad.Render("    👎 "+m.sess.Reviewer) + "\n")
+		}
+	}
+	return sb.String()
+}
+
+// renderInlineEventsForHunk renders events anchored to the whole hunk
+// (`path:newStart,newLines` exact match).
+func renderInlineEventsForHunk(m *model, path string, newStart, newLines int) string {
+	hunkAnchor := review.HunkAnchor(path, newStart, newLines)
+	var sb strings.Builder
+	for _, c := range m.sess.Comments() {
+		if c.Anchor == hunkAnchor {
+			sb.WriteString(renderInlineComment(c))
+		}
+	}
+	return sb.String()
+}
+
+// eventAnchoredToLine returns true if `a` is "path:N" or "path:start-N"
+// (a range ending at N).
+func eventAnchoredToLine(a review.Anchor, path string, newLine int) bool {
+	s := string(a)
+	prefix := path + ":"
+	if !strings.HasPrefix(s, prefix) {
+		return false
+	}
+	rest := s[len(prefix):]
+	// Reject hunk anchors "<start>,<count>".
+	if strings.Contains(rest, ",") {
+		return false
+	}
+	endStr := rest
+	if i := strings.Index(rest, "-"); i > 0 {
+		endStr = rest[i+1:]
+	}
+	n, err := strconv.Atoi(endStr)
+	if err != nil {
+		return false
+	}
+	return n == newLine
 }
 
 func renderHunkSnippet(h review.Hunk, ctx int) string {
