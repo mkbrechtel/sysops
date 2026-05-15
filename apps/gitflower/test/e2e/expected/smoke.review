@@ -2,14 +2,14 @@
 
 ## Sources
 
-- From: `main` at `ee30d617f43597df3a9832ce36936ecf3b233530`
-- To: `feature` at `b43e500182e5e9ab9f9ac614ddde4c4a07273d5e`
+- From: `main` at `21445f25ae007c4d1ad913b5733b0d3eeae791f4`
+- To: `feature` at `9d647ef9922dc72cd9a652023cabebabe9198737`
 - Diff: `main..feature`
-- Commits: 3
+- Commits: 4
 
 ## Verdicts
 
-### Verdict: open (From: reviewer <reviewer@example.com>, 2026-05-15T23:27:25Z)
+### Verdict: open (From: reviewer <reviewer@example.com>, 2026-05-15T23:43:42Z)
 
 # General Issues
 
@@ -49,11 +49,86 @@
 > +	}
 > +}
 
+## Changes in `server.go`
+
+> diff --git a/server.go b/server.go
+> index 7171cd0..77b75a0 100644
+> --- a/server.go
+> +++ b/server.go
+> @@ -2,4 +2,5 @@ package server
+>  
+>  import (
+> +	"context"
+>  	"fmt"
+>  	"net/http"
+> @@ -8,6 +9,7 @@ import (
+>  
+>  const (
+> -	DefaultPort    = 8080
+> -	DefaultTimeout = 5 * time.Second
+> +	DefaultPort    = 8443
+> +	DefaultTimeout = 10 * time.Second
+> +	ShutdownGrace  = 30 * time.Second
+>  )
+>  
+> @@ -16,4 +18,5 @@ type Server struct {
+>  	mux     *http.ServeMux
+>  	timeout time.Duration
+> +	srv     *http.Server
+>  }
+>  
+> @@ -30,6 +33,8 @@ func (s *Server) Handle(pattern string, handler http.HandlerFunc) {
+>  }
+>  
+> -func (s *Server) Run() error {
+> -	srv := &http.Server{
+> +// Run starts the server and blocks until ctx is cancelled. On cancellation
+> +// the server is shut down gracefully within ShutdownGrace.
+> +func (s *Server) Run(ctx context.Context) error {
+> +	s.srv = &http.Server{
+>  		Addr:         s.addr,
+>  		Handler:      s.mux,
+> @@ -37,14 +42,14 @@ func (s *Server) Run() error {
+>  		WriteTimeout: s.timeout,
+>  	}
+> -	return srv.ListenAndServe()
+> -}
+> -
+> -// Legacy entry point used by older callers.
+> -func Start(port int) error {
+> -	s := New(port)
+> -	s.Handle("/", func(w http.ResponseWriter, r *http.Request) {
+> -		fmt.Fprintln(w, "ok")
+> -	})
+> -	return s.Run()
+> +	errCh := make(chan error, 1)
+> +	go func() { errCh <- s.srv.ListenAndServe() }()
+> +	select {
+> +	case <-ctx.Done():
+> +		shutCtx, cancel := context.WithTimeout(context.Background(), ShutdownGrace)
+> +		defer cancel()
+> +		return s.srv.Shutdown(shutCtx)
+> +	case err := <-errCh:
+> +		return err
+> +	}
+>  }
+>  
+> @@ -60,2 +65,9 @@ func VersionHandler(w http.ResponseWriter, r *http.Request) {
+>  	fmt.Fprintln(w, Version)
+>  }
+> +
+> +// MetricsHandler exposes simple in-process counters at /metrics.
+> +func MetricsHandler(w http.ResponseWriter, r *http.Request) {
+> +	fmt.Fprintln(w, "# HELP requests_total Total HTTP requests served.")
+> +	fmt.Fprintln(w, "# TYPE requests_total counter")
+> +	fmt.Fprintln(w, "requests_total 0")
+> +}
+
 # Commits
 
-## Commit a430acd: Add basic greet test
+## Commit 3c50e54: Add basic greet test
 
-> From a430acd8c25e712faad764415814f61c1b78947c Mon Sep 17 00:00:00 2001
+> From 3c50e54e3e7f43d42000aaf10126bd490929286f Mon Sep 17 00:00:00 2001
 > From: Test Author <test@example.com>
 > Date: Fri, 2 Jan 2026 10:00:00 +0000
 > Subject: [PATCH] Add basic greet test
@@ -82,9 +157,9 @@
 > -- 
 > 2.47.3
 
-## Commit 1122279: Default to 'world' when name is empty
+## Commit d29fc31: Default to 'world' when name is empty
 
-> From 1122279ce2596a62bba5ebea54244ef65dc9f370 Mon Sep 17 00:00:00 2001
+> From d29fc31fc0912693659cff9f3e288c5764d0127c Mon Sep 17 00:00:00 2001
 > From: Test Author <test@example.com>
 > Date: Fri, 2 Jan 2026 11:00:00 +0000
 > Subject: [PATCH] Default to 'world' when name is empty
@@ -109,9 +184,102 @@
 > -- 
 > 2.47.3
 
-## Commit b43e500: [Merge Request] greet: default empty name to "world"
+## Commit 3525ab7: server: graceful shutdown, metrics, drop legacy Start()
 
-> From b43e500182e5e9ab9f9ac614ddde4c4a07273d5e Mon Sep 17 00:00:00 2001
+> From 3525ab7ad1087b0cbb162e6c0b7d616952aad49a Mon Sep 17 00:00:00 2001
+> From: Test Author <test@example.com>
+> Date: Fri, 2 Jan 2026 11:30:00 +0000
+> Subject: [PATCH] server: graceful shutdown, metrics, drop legacy Start()
+> 
+> ---
+>  server.go | 40 ++++++++++++++++++++++++++--------------
+>  1 file changed, 26 insertions(+), 14 deletions(-)
+> 
+> diff --git a/server.go b/server.go
+> index 7171cd0..77b75a0 100644
+> --- a/server.go
+> +++ b/server.go
+> @@ -1,20 +1,23 @@
+>  package server
+>  
+>  import (
+> +	"context"
+>  	"fmt"
+>  	"net/http"
+>  	"time"
+>  )
+>  
+>  const (
+> -	DefaultPort    = 8080
+> -	DefaultTimeout = 5 * time.Second
+> +	DefaultPort    = 8443
+> +	DefaultTimeout = 10 * time.Second
+> +	ShutdownGrace  = 30 * time.Second
+>  )
+>  
+>  type Server struct {
+>  	addr    string
+>  	mux     *http.ServeMux
+>  	timeout time.Duration
+> +	srv     *http.Server
+>  }
+>  
+>  func New(port int) *Server {
+> @@ -29,23 +32,25 @@ func (s *Server) Handle(pattern string, handler http.HandlerFunc) {
+>  	s.mux.HandleFunc(pattern, handler)
+>  }
+>  
+> -func (s *Server) Run() error {
+> -	srv := &http.Server{
+> +// Run starts the server and blocks until ctx is cancelled. On cancellation
+> +// the server is shut down gracefully within ShutdownGrace.
+> +func (s *Server) Run(ctx context.Context) error {
+> +	s.srv = &http.Server{
+>  		Addr:         s.addr,
+>  		Handler:      s.mux,
+>  		ReadTimeout:  s.timeout,
+>  		WriteTimeout: s.timeout,
+>  	}
+> -	return srv.ListenAndServe()
+> -}
+> -
+> -// Legacy entry point used by older callers.
+> -func Start(port int) error {
+> -	s := New(port)
+> -	s.Handle("/", func(w http.ResponseWriter, r *http.Request) {
+> -		fmt.Fprintln(w, "ok")
+> -	})
+> -	return s.Run()
+> +	errCh := make(chan error, 1)
+> +	go func() { errCh <- s.srv.ListenAndServe() }()
+> +	select {
+> +	case <-ctx.Done():
+> +		shutCtx, cancel := context.WithTimeout(context.Background(), ShutdownGrace)
+> +		defer cancel()
+> +		return s.srv.Shutdown(shutCtx)
+> +	case err := <-errCh:
+> +		return err
+> +	}
+>  }
+>  
+>  // PingHandler responds with "pong" — the canonical health check.
+> @@ -59,3 +64,10 @@ var Version = "dev"
+>  func VersionHandler(w http.ResponseWriter, r *http.Request) {
+>  	fmt.Fprintln(w, Version)
+>  }
+> +
+> +// MetricsHandler exposes simple in-process counters at /metrics.
+> +func MetricsHandler(w http.ResponseWriter, r *http.Request) {
+> +	fmt.Fprintln(w, "# HELP requests_total Total HTTP requests served.")
+> +	fmt.Fprintln(w, "# TYPE requests_total counter")
+> +	fmt.Fprintln(w, "requests_total 0")
+> +}
+> -- 
+> 2.47.3
+
+## Commit 9d647ef: [Merge Request] greet: default empty name to "world"
+
+> From 9d647ef9922dc72cd9a652023cabebabe9198737 Mon Sep 17 00:00:00 2001
 > From: Test Author <test@example.com>
 > Date: Fri, 2 Jan 2026 12:00:00 +0000
 > Subject: [PATCH] [Merge Request] greet: default empty name to "world"

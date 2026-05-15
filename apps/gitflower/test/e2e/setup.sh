@@ -40,7 +40,72 @@ func Hello(name string) string {
 	return "Hello, " + name + "!"
 }
 EOF
-git add README.md greet.go
+# A meatier file so reviews aren't trivial: multiple functions, room to
+# add/delete hunks across the file in the feature branch.
+cat > server.go <<'EOF'
+package server
+
+import (
+	"fmt"
+	"net/http"
+	"time"
+)
+
+const (
+	DefaultPort    = 8080
+	DefaultTimeout = 5 * time.Second
+)
+
+type Server struct {
+	addr    string
+	mux     *http.ServeMux
+	timeout time.Duration
+}
+
+func New(port int) *Server {
+	return &Server{
+		addr:    fmt.Sprintf(":%d", port),
+		mux:     http.NewServeMux(),
+		timeout: DefaultTimeout,
+	}
+}
+
+func (s *Server) Handle(pattern string, handler http.HandlerFunc) {
+	s.mux.HandleFunc(pattern, handler)
+}
+
+func (s *Server) Run() error {
+	srv := &http.Server{
+		Addr:         s.addr,
+		Handler:      s.mux,
+		ReadTimeout:  s.timeout,
+		WriteTimeout: s.timeout,
+	}
+	return srv.ListenAndServe()
+}
+
+// Legacy entry point used by older callers.
+func Start(port int) error {
+	s := New(port)
+	s.Handle("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "ok")
+	})
+	return s.Run()
+}
+
+// PingHandler responds with "pong" — the canonical health check.
+func PingHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, "pong")
+}
+
+// VersionHandler returns the build version. Filled in at link time.
+var Version = "dev"
+
+func VersionHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, Version)
+}
+EOF
+git add README.md greet.go server.go
 git commit -q -m "Initial commit"
 
 # ---- feature branch: three commits ------------------------------------------
@@ -79,6 +144,87 @@ EOF
 git add greet.go
 GIT_AUTHOR_DATE="2026-01-02T11:00:00Z" GIT_COMMITTER_DATE="2026-01-02T11:00:00Z" \
 git commit -q -m "Default to 'world' when name is empty"
+
+# Commit 3: substantial server.go changes — multiple hunks across the file
+GIT_AUTHOR_DATE="2026-01-02T11:30:00Z" GIT_COMMITTER_DATE="2026-01-02T11:30:00Z" \
+cat > server.go <<'EOF'
+package server
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+)
+
+const (
+	DefaultPort    = 8443
+	DefaultTimeout = 10 * time.Second
+	ShutdownGrace  = 30 * time.Second
+)
+
+type Server struct {
+	addr    string
+	mux     *http.ServeMux
+	timeout time.Duration
+	srv     *http.Server
+}
+
+func New(port int) *Server {
+	return &Server{
+		addr:    fmt.Sprintf(":%d", port),
+		mux:     http.NewServeMux(),
+		timeout: DefaultTimeout,
+	}
+}
+
+func (s *Server) Handle(pattern string, handler http.HandlerFunc) {
+	s.mux.HandleFunc(pattern, handler)
+}
+
+// Run starts the server and blocks until ctx is cancelled. On cancellation
+// the server is shut down gracefully within ShutdownGrace.
+func (s *Server) Run(ctx context.Context) error {
+	s.srv = &http.Server{
+		Addr:         s.addr,
+		Handler:      s.mux,
+		ReadTimeout:  s.timeout,
+		WriteTimeout: s.timeout,
+	}
+	errCh := make(chan error, 1)
+	go func() { errCh <- s.srv.ListenAndServe() }()
+	select {
+	case <-ctx.Done():
+		shutCtx, cancel := context.WithTimeout(context.Background(), ShutdownGrace)
+		defer cancel()
+		return s.srv.Shutdown(shutCtx)
+	case err := <-errCh:
+		return err
+	}
+}
+
+// PingHandler responds with "pong" — the canonical health check.
+func PingHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, "pong")
+}
+
+// VersionHandler returns the build version. Filled in at link time.
+var Version = "dev"
+
+func VersionHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, Version)
+}
+
+// MetricsHandler exposes simple in-process counters at /metrics.
+func MetricsHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, "# HELP requests_total Total HTTP requests served.")
+	fmt.Fprintln(w, "# TYPE requests_total counter")
+	fmt.Fprintln(w, "requests_total 0")
+}
+EOF
+git add server.go
+GIT_AUTHOR_DATE="2026-01-02T11:30:00Z" GIT_COMMITTER_DATE="2026-01-02T11:30:00Z" \
+git commit -q -m "server: graceful shutdown, metrics, drop legacy Start()"
 
 # Commit 3: doc tweak (the [Merge Request] tip)
 GIT_AUTHOR_DATE="2026-01-02T12:00:00Z" GIT_COMMITTER_DATE="2026-01-02T12:00:00Z" \
