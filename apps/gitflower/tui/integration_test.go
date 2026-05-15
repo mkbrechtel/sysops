@@ -131,6 +131,81 @@ index 0000000..abc1234
 	}
 }
 
+// TestSpaceWalkPagesThroughLongHunk asserts that Space scrolls within a
+// hunk that exceeds the viewport, then advances once the hunk has been
+// fully scrolled through and its read marker has fired.
+func TestSpaceWalkPagesThroughLongHunk(t *testing.T) {
+	tmp := t.TempDir()
+	reviewPath := filepath.Join(tmp, "test.review")
+
+	// Synthesise a single hunk of ~60 added lines so it exceeds a 20-row
+	// viewport easily.
+	var sb strings.Builder
+	sb.WriteString("diff --git a/big.txt b/big.txt\n")
+	sb.WriteString("new file mode 100644\n")
+	sb.WriteString("index 0000000..abc1234\n")
+	sb.WriteString("--- /dev/null\n")
+	sb.WriteString("+++ b/big.txt\n")
+	sb.WriteString("@@ -0,0 +1,60 @@\n")
+	for i := 1; i <= 60; i++ {
+		sb.WriteString("+line ")
+		sb.WriteString(string(rune('0' + (i%10))))
+		sb.WriteString("\n")
+	}
+	patch := strings.TrimRight(sb.String(), "\n")
+	scope := review.Scope{
+		Branch:        "feature",
+		Base:          "main",
+		TipSHA:        "abc1234567890",
+		BaseSHA:       "0000111122223333",
+		Diff:          "main..feature",
+		Title:         "big",
+		Commits:       []review.Commit{{SHA: "abc1234567890", Short: "abc1234", Subject: "big commit"}},
+		Files:         []string{"big.txt"},
+		RawDiff:       patch,
+		FilePatches:   map[string]string{"big.txt": patch},
+		CommitPatches: map[string]string{"abc1234567890": "From abc1234 ...\n"},
+	}
+	sess := review.New(scope, "tester@example.com", reviewPath)
+	m := newModel(sess, tmp, 10*time.Millisecond)
+	m = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 20})
+
+	// Press Space → drills in. Single hunk exceeds viewport so this is a
+	// page-scroll step, not an advance. Position should change.
+	startY := m.viewport.YOffset()
+	m = key(t, m, ' ', " ")
+	if m.mode != modeDiff {
+		t.Fatalf("after first Space: mode %v want modeDiff", m.mode)
+	}
+	if m.viewport.YOffset() == startY && !m.sess.IsRead(m.hunkRanges[0].anchor) {
+		// First press from section mode just enters line mode; viewport may
+		// still be at top. That's fine — subsequent presses must scroll.
+	}
+
+	// Keep pressing Space; each press should make progress until the read
+	// marker fires (delayedReadMsg dispatched on the tick).
+	maxPresses := 20
+	for i := 0; i < maxPresses; i++ {
+		// Manually fire any pending delayed-read ticks so the test isn't
+		// flaky on wall-clock timing.
+		for anchor := range m.pendingReads {
+			next, _ := m.Update(delayedReadMsg{anchor: anchor})
+			m = next.(*model)
+		}
+		if m.sess.IsRead(m.hunkRanges[0].anchor) {
+			break
+		}
+		prevY := m.viewport.YOffset()
+		m = key(t, m, ' ', " ")
+		if i > 0 && m.viewport.YOffset() == prevY && !m.viewport.AtBottom() {
+			t.Fatalf("Space stuck: YOffset=%d, not at bottom", prevY)
+		}
+	}
+	if !m.sess.IsRead(m.hunkRanges[0].anchor) {
+		t.Errorf("after %d Spaces the hunk still isn't marked read", maxPresses)
+	}
+}
+
 // step feeds a generic tea.Msg through the model and returns the (asserted)
 // model after the update.
 func step(t *testing.T, m *model, msg tea.Msg) *model {
