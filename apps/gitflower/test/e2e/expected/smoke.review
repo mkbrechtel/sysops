@@ -1,0 +1,127 @@
+# Review
+
+## Sources
+
+- From: `main` at `ee30d617f43597df3a9832ce36936ecf3b233530`
+- To: `feature` at `b43e500182e5e9ab9f9ac614ddde4c4a07273d5e`
+- Diff: `main..feature`
+- Commits: 3
+
+## Verdicts
+
+### Verdict: open (From: reviewer <reviewer@example.com>, 2026-05-15T23:02:39Z)
+
+# General Issues
+
+# Changes
+
+## Changes in `greet.go`
+
+> diff --git a/greet.go b/greet.go
+> index 08b50cb..477c324 100644
+> --- a/greet.go
+> +++ b/greet.go
+> @@ -2,4 +2,7 @@ package greet
+>  
+>  func Hello(name string) string {
+> +	if name == "" {
+> +		name = "world"
+> +	}
+>  	return "Hello, " + name + "!"
+>  }
+
+## Changes in `greet_test.go`
+
+> diff --git a/greet_test.go b/greet_test.go
+> new file mode 100644
+> index 0000000..16b2e78
+> --- /dev/null
+> +++ b/greet_test.go
+> @@ -0,0 +1,10 @@
+> +package greet
+> +
+> +import "testing"
+> +
+> +func TestHello(t *testing.T) {
+> +	got := Hello("world")
+> +	if got != "Hello, world!" {
+> +		t.Fatalf("got %q", got)
+> +	}
+> +}
+
+# Commits
+
+## Commit b43e500: [Merge Request] greet: default empty name to "world"
+
+> From b43e500182e5e9ab9f9ac614ddde4c4a07273d5e Mon Sep 17 00:00:00 2001
+> From: Test Author <test@example.com>
+> Date: Fri, 2 Jan 2026 12:00:00 +0000
+> Subject: [PATCH] [Merge Request] greet: default empty name to "world"
+> 
+> Two small changes plus a test:
+> 
+> - a basic test covering the happy path
+> - the empty-name default
+> 
+> Base: main
+> -- 
+> 2.47.3
+
+## Commit 1122279: Default to 'world' when name is empty
+
+> From 1122279ce2596a62bba5ebea54244ef65dc9f370 Mon Sep 17 00:00:00 2001
+> From: Test Author <test@example.com>
+> Date: Fri, 2 Jan 2026 11:00:00 +0000
+> Subject: [PATCH] Default to 'world' when name is empty
+> 
+> ---
+>  greet.go | 3 +++
+>  1 file changed, 3 insertions(+)
+> 
+> diff --git a/greet.go b/greet.go
+> index 08b50cb..477c324 100644
+> --- a/greet.go
+> +++ b/greet.go
+> @@ -1,5 +1,8 @@
+>  package greet
+>  
+>  func Hello(name string) string {
+> +	if name == "" {
+> +		name = "world"
+> +	}
+>  	return "Hello, " + name + "!"
+>  }
+> -- 
+> 2.47.3
+
+## Commit a430acd: Add basic greet test
+
+> From a430acd8c25e712faad764415814f61c1b78947c Mon Sep 17 00:00:00 2001
+> From: Test Author <test@example.com>
+> Date: Fri, 2 Jan 2026 10:00:00 +0000
+> Subject: [PATCH] Add basic greet test
+> 
+> ---
+>  greet_test.go | 10 ++++++++++
+>  1 file changed, 10 insertions(+)
+>  create mode 100644 greet_test.go
+> 
+> diff --git a/greet_test.go b/greet_test.go
+> new file mode 100644
+> index 0000000..16b2e78
+> --- /dev/null
+> +++ b/greet_test.go
+> @@ -0,0 +1,10 @@
+> +package greet
+> +
+> +import "testing"
+> +
+> +func TestHello(t *testing.T) {
+> +	got := Hello("world")
+> +	if got != "Hello, world!" {
+> +		t.Fatalf("got %q", got)
+> +	}
+> +}
+> -- 
+> 2.47.3
+

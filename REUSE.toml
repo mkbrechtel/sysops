@@ -10,3 +10,11 @@ SPDX-PackageDownloadLocation = "https://github.com/mkbrechtel/devops"
 path = ["apps/gitflower/README.md", "apps/gitflower/CLAUDE.md", "apps/gitflower/go.mod", "apps/gitflower/go.sum"]
 SPDX-FileCopyrightText = "2025-2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>"
 SPDX-License-Identifier = "EUPL-1.2"
+
+# Generated test goldens. These are *.review files produced by the e2e
+# harness and compared verbatim; embedding a header would change their
+# byte shape.
+[[annotations]]
+path = "apps/gitflower/test/e2e/expected/**"
+SPDX-FileCopyrightText = "2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>"
+SPDX-License-Identifier = "EUPL-1.2"
