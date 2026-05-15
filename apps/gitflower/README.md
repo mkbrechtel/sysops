@@ -2,6 +2,31 @@
 
 A Git workflow tool.
 
+## Quick start
+
+```bash
+make build              # produce ./gitflower
+make test               # unit + TUI integration tests (~50ms)
+make e2e                # full pipeline against a generated fixture repo
+make help               # everything else
+```
+
+The `review` subcommand is the headline feature:
+
+```bash
+gitflower review feature                              # full TUI
+gitflower review --no-tui feature                     # write the .review and exit
+gitflower review --base main --read-delay 500ms feature
+```
+
+See `issues/dot-review.feature.md` (in the parent repo) for the on-disk
+file format and `apps/gitflower/tui/` for the TUI internals.
+
+---
+
+## Original design notes
+
+
 The idea of this app is provide a fully git based development platform. Other than say central Git hosting sites, like GitHub, GitLab or Gitea/Forgejo, we support a local repo first, git centric, home directory based user experience.
 
 For example, our issue tracker is just markdown files in the `issues/` folder in the home directory (should be configurable, but this is the default). Issues are tracked in `issues/` branches automatically. 

@@ -9,7 +9,7 @@
 
 ## Verdicts
 
-### Verdict: open (From: reviewer <reviewer@example.com>, 2026-05-15T23:02:39Z)
+### Verdict: open (From: reviewer <reviewer@example.com>, 2026-05-15T23:27:25Z)
 
 # General Issues
 
@@ -51,19 +51,34 @@
 
 # Commits
 
-## Commit b43e500: [Merge Request] greet: default empty name to "world"
+## Commit a430acd: Add basic greet test
 
-> From b43e500182e5e9ab9f9ac614ddde4c4a07273d5e Mon Sep 17 00:00:00 2001
+> From a430acd8c25e712faad764415814f61c1b78947c Mon Sep 17 00:00:00 2001
 > From: Test Author <test@example.com>
-> Date: Fri, 2 Jan 2026 12:00:00 +0000
-> Subject: [PATCH] [Merge Request] greet: default empty name to "world"
+> Date: Fri, 2 Jan 2026 10:00:00 +0000
+> Subject: [PATCH] Add basic greet test
 > 
-> Two small changes plus a test:
+> ---
+>  greet_test.go | 10 ++++++++++
+>  1 file changed, 10 insertions(+)
+>  create mode 100644 greet_test.go
 > 
-> - a basic test covering the happy path
-> - the empty-name default
-> 
-> Base: main
+> diff --git a/greet_test.go b/greet_test.go
+> new file mode 100644
+> index 0000000..16b2e78
+> --- /dev/null
+> +++ b/greet_test.go
+> @@ -0,0 +1,10 @@
+> +package greet
+> +
+> +import "testing"
+> +
+> +func TestHello(t *testing.T) {
+> +	got := Hello("world")
+> +	if got != "Hello, world!" {
+> +		t.Fatalf("got %q", got)
+> +	}
+> +}
 > -- 
 > 2.47.3
 
@@ -94,34 +109,19 @@
 > -- 
 > 2.47.3
 
-## Commit a430acd: Add basic greet test
+## Commit b43e500: [Merge Request] greet: default empty name to "world"
 
-> From a430acd8c25e712faad764415814f61c1b78947c Mon Sep 17 00:00:00 2001
+> From b43e500182e5e9ab9f9ac614ddde4c4a07273d5e Mon Sep 17 00:00:00 2001
 > From: Test Author <test@example.com>
-> Date: Fri, 2 Jan 2026 10:00:00 +0000
-> Subject: [PATCH] Add basic greet test
+> Date: Fri, 2 Jan 2026 12:00:00 +0000
+> Subject: [PATCH] [Merge Request] greet: default empty name to "world"
 > 
-> ---
->  greet_test.go | 10 ++++++++++
->  1 file changed, 10 insertions(+)
->  create mode 100644 greet_test.go
+> Two small changes plus a test:
 > 
-> diff --git a/greet_test.go b/greet_test.go
-> new file mode 100644
-> index 0000000..16b2e78
-> --- /dev/null
-> +++ b/greet_test.go
-> @@ -0,0 +1,10 @@
-> +package greet
-> +
-> +import "testing"
-> +
-> +func TestHello(t *testing.T) {
-> +	got := Hello("world")
-> +	if got != "Hello, world!" {
-> +		t.Fatalf("got %q", got)
-> +	}
-> +}
+> - a basic test covering the happy path
+> - the empty-name default
+> 
+> Base: main
 > -- 
 > 2.47.3
 

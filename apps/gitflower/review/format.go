@@ -220,7 +220,10 @@ func renderQuotedDiff(sb *strings.Builder, path, patch string, evs []emittableEv
 
 func renderCommits(sb *strings.Builder, s *ReviewSession) {
 	sb.WriteString("# Commits\n\n")
-	for _, c := range s.Scope.Commits {
+	// Spec: emit commits oldest first. `git log` (ScopeFor's source) gives
+	// newest first, so we walk in reverse.
+	for i := len(s.Scope.Commits) - 1; i >= 0; i-- {
+		c := s.Scope.Commits[i]
 		fmt.Fprintf(sb, "## Commit %s: %s\n\n", c.Short, c.Subject)
 		patch := s.Scope.CommitPatch(c.SHA)
 		if patch == "" {

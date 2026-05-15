@@ -5,12 +5,15 @@ SPDX-License-Identifier: EUPL-1.2
 
 # gitflower e2e tests
 
-Two runners, same fixture.
+Three runners covering different layers.
 
 | Runner | Needs | What it does |
 |---|---|---|
-| `smoke.sh` | nothing extra (Go + diff) | rebuilds the fixture repo, runs `gitflower review --no-tui`, diffs the output `.review` against the golden after normalising dates/SHAs |
-| `run.sh` | [VHS](https://github.com/charmbracelet/vhs) on PATH | drives each `scenarios/*.tape` through a real TUI session, then runs the same golden check |
+| `go test ./tui/` | Go only | drives the bubbletea model in-process via synthetic key events. Verifies section→line drill-in, comment creation, verdict cycling, and save. Sub-second. **Canonical** TUI behaviour check. |
+| `test/e2e/smoke.sh` | Go + diff | rebuilds the fixture repo, runs `gitflower review --no-tui`, diffs the output `.review` against the golden after normalising dates/SHAs. Covers the format pipeline against real git. |
+| `test/e2e/run.sh` | [VHS](https://github.com/charmbracelet/vhs) + `ttyd` + `ffmpeg` | drives each `scenarios/*.tape` through a real PTY/TUI session, then runs the same golden check. Produces `.gif` and `.cast` recordings. Slow but visual. |
+
+The top-level `Makefile` wires these as `make test` / `make e2e` / `make e2e-vhs`.
 
 The fixture repo is deterministic: `setup.sh` reconstructs it from scratch every run, with fixed identities and author dates so commit SHAs are byte-stable.
 
