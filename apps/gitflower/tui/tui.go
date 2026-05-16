@@ -236,6 +236,12 @@ type model struct {
 	lineRead    map[lineKey]bool
 	lineSkipped map[lineKey]bool
 
+	// File-mode per-line read state. Keys are filePath strings; the
+	// inner map holds (1-based line number → read). This lets the
+	// reviewer see which lines of a file they've already scrolled
+	// through.
+	fileLineRead map[string]map[int]bool
+
 	// Per-view read tick. The user reads the lines currently in the
 	// viewport over a "lines_visible / readRate" window. Each time
 	// the view stabilises on a new set of unread lines we schedule
@@ -317,9 +323,10 @@ func newModel(sess *review.ReviewSession, root string, readRate float64) *model 
 		readRate:    readRate,
 		lineRead:    map[lineKey]bool{},
 		lineSkipped: map[lineKey]bool{},
-		lastViewOffset:  -1,
+		lastViewOffset:   -1,
 		changesExpanded:  map[string]bool{},
 		fileTreeExpanded: map[string]bool{},
+		fileLineRead:     map[string]map[int]bool{},
 	}
 	return m
 }
@@ -364,28 +371,45 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		marked := 0
 		top := m.viewport.YOffset()
 		bot := top + m.viewport.Height() - 1
-		for _, lr := range m.lineRanges {
-			if lr.isEOF {
-				continue
+		switch m.mode {
+		case modeDiff:
+			for _, lr := range m.lineRanges {
+				if lr.isEOF {
+					continue
+				}
+				if lr.kind != review.LineAdd && lr.kind != review.LineDelete {
+					continue
+				}
+				if lr.botRow < top || lr.topRow > bot {
+					continue
+				}
+				lk := lineKey{fileIdx: m.fileIdx, hunkIdx: lr.hunkIdx, lineIdx: lr.lineIdx}
+				if m.lineRead[lk] {
+					continue
+				}
+				// Skipped doesn't block reading; promotion clears the
+				// skip flag so a line is read OR skipped OR unread.
+				m.lineRead[lk] = true
+				delete(m.lineSkipped, lk)
+				marked++
 			}
-			if lr.kind != review.LineAdd && lr.kind != review.LineDelete {
-				continue
+		case modeFile:
+			setForFile := m.fileLineRead[m.filePath]
+			if setForFile == nil {
+				setForFile = map[int]bool{}
+				m.fileLineRead[m.filePath] = setForFile
 			}
-			if lr.botRow < top || lr.topRow > bot {
-				continue
+			for row := top; row <= bot && row < len(m.fileLines); row++ {
+				if row < 0 {
+					continue
+				}
+				ln := row + 1
+				if setForFile[ln] {
+					continue
+				}
+				setForFile[ln] = true
+				marked++
 			}
-			lk := lineKey{fileIdx: m.fileIdx, hunkIdx: lr.hunkIdx, lineIdx: lr.lineIdx}
-			if m.lineRead[lk] {
-				continue
-			}
-			// Skipped doesn't block reading — if the reviewer dwells
-			// on a previously-skipped line, it gets promoted to read
-			// AND we clear the skipped flag so the state is mutually
-			// exclusive: a line is read OR skipped OR unread, never
-			// "skipped and also read".
-			m.lineRead[lk] = true
-			delete(m.lineSkipped, lk)
-			marked++
 		}
 		if marked > 0 {
 			m.scheduleAutoSave()
@@ -1223,10 +1247,32 @@ func (m *model) openSelectedItem() {
 			m.enterFileReview(row.fullPath)
 		}
 	case sectionCommits:
-		// For v1: enter Diff mode on the changed-files list, leaving commit
-		// filtering as a follow-up.
-		m.mode = modeDiff
-		m.refreshViewport()
+		// Drill into the commit's first virtual file so the reviewer
+		// lands inside the commit's diff in line mode. Each commit's
+		// patches are appended to m.files under `commit:<short>:<path>`
+		// when the session loads — we find the first one and switch
+		// to modeDiff on it.
+		idx := m.sectIdx[m.sect]
+		if idx < 0 || idx >= len(m.sess.Scope.Commits) {
+			return
+		}
+		short := m.sess.Scope.Commits[idx].Short
+		prefix := "commit:" + short + ":"
+		for fi, f := range m.files {
+			if strings.HasPrefix(f.Path, prefix) {
+				m.fileIdx = fi
+				m.hunkIdx = 0
+				m.lineCursor = 0
+				m.atEOF = false
+				if h := m.currentHunk(); h != nil {
+					m.lineCursor = m.firstNonDelete(h, 0, +1)
+				}
+				m.mode = modeDiff
+				m.refreshViewport()
+				return
+			}
+		}
+		m.status = "no diff content for commit " + short
 	case sectionIssues:
 		idx := m.sectIdx[m.sect]
 		issues := m.sess.Issues()
@@ -2396,28 +2442,7 @@ func (m *model) updateDisplayed() {
 	if m.viewReadScheduled {
 		return
 	}
-	top := m.viewport.YOffset()
-	bot := top + m.viewport.Height() - 1
-	count := 0
-	for _, lr := range m.lineRanges {
-		if lr.isEOF {
-			continue
-		}
-		if lr.kind != review.LineAdd && lr.kind != review.LineDelete {
-			continue
-		}
-		if lr.botRow < top || lr.topRow > bot {
-			continue
-		}
-		lk := lineKey{fileIdx: m.fileIdx, hunkIdx: lr.hunkIdx, lineIdx: lr.lineIdx}
-		// Skipped lines still count toward the reading-time budget if
-		// the reviewer is looking at them — viewing demotes "skip" to
-		// "read".
-		if m.lineRead[lk] {
-			continue
-		}
-		count++
-	}
+	count := m.countVisibleUnreadLines()
 	if count == 0 {
 		return
 	}
@@ -2427,6 +2452,48 @@ func (m *model) updateDisplayed() {
 	m.queuedCmds = append(m.queuedCmds, tea.Tick(delay, func(time.Time) tea.Msg {
 		return viewReadMsg{gen: gen}
 	}))
+}
+
+// countVisibleUnreadLines counts reviewable diff lines (modeDiff) or
+// file-content lines (modeFile) that are currently in the viewport
+// and not yet read. Drives the per-view tick delay.
+func (m *model) countVisibleUnreadLines() int {
+	top := m.viewport.YOffset()
+	bot := top + m.viewport.Height() - 1
+	count := 0
+	switch m.mode {
+	case modeDiff:
+		for _, lr := range m.lineRanges {
+			if lr.isEOF {
+				continue
+			}
+			if lr.kind != review.LineAdd && lr.kind != review.LineDelete {
+				continue
+			}
+			if lr.botRow < top || lr.topRow > bot {
+				continue
+			}
+			lk := lineKey{fileIdx: m.fileIdx, hunkIdx: lr.hunkIdx, lineIdx: lr.lineIdx}
+			if m.lineRead[lk] {
+				continue
+			}
+			count++
+		}
+	case modeFile:
+		// File-mode rendered rows = file lines, 1:1 (no wrap-aware
+		// lineRanges yet). The viewport's row index IS the line index.
+		setForFile := m.fileLineRead[m.filePath]
+		for row := top; row <= bot && row < len(m.fileLines); row++ {
+			if row < 0 {
+				continue
+			}
+			if setForFile[row+1] {
+				continue
+			}
+			count++
+		}
+	}
+	return count
 }
 
 // viewReadDelay = lines / readRate, clamped to the minimum tick.
@@ -3001,16 +3068,20 @@ func renderFileView(m *model) (body string, cursorRow int) {
 	var sb strings.Builder
 	editing := m.edit == editComment || m.edit == editQuestion
 	digits := len(fmt.Sprintf("%d", len(m.fileLines)))
+	setForFile := m.fileLineRead[m.filePath]
 	for i, ln := range m.fileLines {
-		styled := fmt.Sprintf("%*d  %s", digits, i+1, ln)
-		if m.mode == modeFile {
-			if i == m.fileLineCursor {
-				styled = styleLineCur.Render(styled)
-				cursorRow = sb.Len()
-				_ = cursorRow
-			}
+		body := fmt.Sprintf("%*d  %s", digits, i+1, ln)
+		// Dim "already-viewed" lines like read diff lines, so the
+		// reviewer can see at a glance how far they've scrolled.
+		if setForFile[i+1] {
+			body = styleRead.Render(body)
 		}
-		sb.WriteString(styled + "\n")
+		if m.mode == modeFile && i == m.fileLineCursor {
+			body = styleLineCur.Render(body)
+			cursorRow = sb.Len()
+			_ = cursorRow
+		}
+		sb.WriteString(body + "\n")
 
 		if editing && m.mode == modeFile && i == m.fileLineCursor {
 			sb.WriteString(renderInlineEditor(m))
