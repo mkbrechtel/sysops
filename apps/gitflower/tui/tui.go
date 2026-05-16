@@ -506,6 +506,18 @@ func (m *model) updateTree(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case "right", "l", "enter":
 		m.openSelectedItem()
+	case "pgdown", "f":
+		if m.sect == sectionChanges {
+			m.pageDown()
+			return m, nil
+		}
+		return m, m.scrollViewport(msg)
+	case "pgup", "b":
+		if m.sect == sectionChanges {
+			m.pageUp()
+			return m, nil
+		}
+		return m, m.scrollViewport(msg)
 	default:
 		return m, m.scrollViewport(msg)
 	}
@@ -697,6 +709,10 @@ func (m *model) updateDiff(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// gains a FileReview entry; cursor moves below will populate its
 		// Lines with the content the reviewer actually visits.
 		m.enterFileReview(m.currentFile().Path)
+	case "pgdown":
+		m.pageDown()
+	case "pgup":
+		m.pageUp()
 	default:
 		return m, m.scrollViewport(msg)
 	}
@@ -899,24 +915,11 @@ func (m *model) spaceWalk() {
 					top := m.viewport.YOffset()
 					bot := top + m.viewport.Height() - 1
 					if r.botRow > bot {
-						// Page down so the 5th-from-bottom row becomes
-						// (roughly) the new top — that gives ~4 lines of
-						// overlap context. snapCursorIntoView then picks
-						// the first reviewable line at-or-below the new
-						// top and re-aligns the viewport so that line
-						// sits at row 0, so the cursor is always on the
-						// uppermost visible row (never on row 1 or 2
-						// behind a header / blank / continuation).
-						step := m.viewport.Height() - 5
-						if step < 1 {
-							step = 1
-						}
-						m.viewport.SetYOffset(top + step)
-						m.snapCursorIntoView()
-						off := m.viewport.YOffset()
-						m.refreshViewport()
-						m.viewport.SetYOffset(off)
-						m.updateDisplayed()
+						// Defer to the shared pageDown logic so Space
+						// walks use exactly the same "marker N lines
+						// before old bottom, last-page marker on top"
+						// behaviour as PgDn.
+						m.pageDown()
 						return
 					}
 					break
@@ -1156,26 +1159,26 @@ func (m *model) placeCursor(lr lineRange) {
 	m.lineCursor = lr.lineIdx
 }
 
-// scrollViewport is the one true viewport-scroll path: it forwards the
-// message to the viewport, refreshes read tracking, snaps the line cursor
-// into the new visible region, and — in section mode peeking at Changes —
-// re-renders so the sidebar/marker stays in sync with what's on screen.
-// Every code path that scrolls the diff pane (mouse wheel, PgUp/PgDn,
-// arrow scroll-fallback in either tree or diff mode) routes through here.
+// pageOverlap is how many reviewable lines from the bottom of the
+// current view get carried over to the top of the next page. The cursor
+// lands on the (overlap+1)th-from-bottom line so the reader sees that
+// line stay put as the marker between pages, then the rest comes into
+// view below it.
+const pageOverlap = 5
+
+// scrollViewport is the one true viewport-scroll path. For mouse-wheel
+// / arrow-scroll messages we forward to the viewport directly; for
+// page-sized navigation (PgUp/PgDn/Space-style paging) callers use
+// pageDown / pageUp explicitly because those have richer semantics
+// (marker placement, last-page exception, EOF-on-no-progress).
 func (m *model) scrollViewport(msg tea.Msg) tea.Cmd {
 	preY := m.viewport.YOffset()
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
 	m.updateDisplayed()
-	// Only Changes (line mode or tree-peek) has a line cursor to track.
 	if m.mode == modeDiff || (m.mode == modeTree && m.sect == sectionChanges) {
 		oldHunk, oldLine, oldEOF := m.hunkIdx, m.lineCursor, m.atEOF
 		m.snapCursorIntoView()
-		// User paged past the last clean line and the viewport is
-		// already at the bottom (no further scroll possible): NOW step
-		// onto the EOF marker. We don't auto-jump to EOF the moment we
-		// arrive at the last page — the cursor first parks on the
-		// natural page-break line so the reader can see what's left.
 		if !m.atEOF &&
 			oldHunk == m.hunkIdx && oldLine == m.lineCursor &&
 			m.viewport.YOffset() == preY && m.viewport.AtBottom() {
@@ -1183,17 +1186,9 @@ func (m *model) scrollViewport(msg tea.Msg) tea.Cmd {
 				m.placeCursor(*eof)
 			}
 		}
-		// Keep the sidebar's selection in sync with the cursor's hunk so
-		// the user can see in the section list which file/hunk they're
-		// currently scrolled to. (For now we only have a per-file Changes
-		// list, so this is a no-op when the peek is for a single file.)
 		if m.mode == modeTree && m.sect == sectionChanges {
 			m.sectIdx[sectionChanges] = m.fileIdx
 		}
-		// Re-render to redraw the highlight on the new cursor row. The
-		// viewport position is preserved by stashing & restoring the
-		// offset around refreshViewport, since refreshViewport would
-		// otherwise re-center on the cursor.
 		if oldHunk != m.hunkIdx || oldLine != m.lineCursor || oldEOF != m.atEOF {
 			off := m.viewport.YOffset()
 			m.refreshViewport()
@@ -1202,6 +1197,165 @@ func (m *model) scrollViewport(msg tea.Msg) tea.Cmd {
 		}
 	}
 	return cmd
+}
+
+// pageDown advances by one page of new content. The marker IS the
+// page-break line: it sits at row 0 of the new view so the reader's
+// attention starts on familiar text and the rest of the file unfurls
+// downward. Exception: on the last page, where the viewport can't
+// scroll far enough to put the marker on row 0, the marker drops to
+// row (pageOverlap - 1) — the 5th line of the last page. One more
+// pageDown after that lands on the EOF marker.
+func (m *model) pageDown() {
+	if len(m.lineRanges) == 0 || m.atEOF {
+		return
+	}
+	top := m.viewport.YOffset()
+	height := m.viewport.Height()
+	bot := top + height - 1
+	oldHunk, oldLine := m.hunkIdx, m.lineCursor
+
+	// Marker = the last reviewable line whose topRow <= (bot - pageOverlap).
+	// That line was sitting `pageOverlap` rows above the bottom of the
+	// old view, which is where the reader was about to lose context, so
+	// it becomes the anchor for the next page.
+	target := bot - pageOverlap
+	var marker *lineRange
+	for i := range m.lineRanges {
+		lr := &m.lineRanges[i]
+		if lr.isEOF || lr.kind == review.LineDelete {
+			continue
+		}
+		if lr.topRow > target {
+			break
+		}
+		marker = lr
+	}
+	if marker == nil {
+		for i := range m.lineRanges {
+			lr := &m.lineRanges[i]
+			if lr.isEOF || lr.kind == review.LineDelete {
+				continue
+			}
+			if lr.botRow >= top {
+				marker = lr
+				break
+			}
+		}
+	}
+	if marker == nil {
+		return
+	}
+
+	// Try to put the marker on row 0.
+	m.viewport.SetYOffset(marker.topRow)
+	actualTop := m.viewport.YOffset()
+	if actualTop < marker.topRow {
+		// Last page: viewport clamped. Pick a different marker — the
+		// first reviewable line at row (pageOverlap - 1), i.e. the
+		// 5th row of the last page.
+		exceptionRow := actualTop + pageOverlap - 1
+		for i := range m.lineRanges {
+			lr := &m.lineRanges[i]
+			if lr.isEOF || lr.kind == review.LineDelete {
+				continue
+			}
+			if lr.topRow >= exceptionRow {
+				marker = lr
+				break
+			}
+		}
+	}
+	m.placeCursor(*marker)
+
+	// If even the last-page-exception marker didn't advance the cursor
+	// (we were already there), step onto EOF.
+	if oldHunk == m.hunkIdx && oldLine == m.lineCursor && m.viewport.AtBottom() {
+		if eof := m.eofRange(); eof != nil {
+			m.placeCursor(*eof)
+		}
+	}
+
+	off := m.viewport.YOffset()
+	m.refreshViewport()
+	m.viewport.SetYOffset(off)
+	m.updateDisplayed()
+	if m.mode == modeTree && m.sect == sectionChanges {
+		m.sectIdx[sectionChanges] = m.fileIdx
+	}
+}
+
+// pageUp mirrors pageDown: marker = the reviewable line that was at
+// row pageOverlap of the current view (so on the way back up, the line
+// the reader was holding stays visible), placed at row (height -
+// pageOverlap - 1) of the new view so most of the new content is above
+// the marker. At the top of the file the viewport clamps and the
+// marker sits naturally on whichever row it lands.
+func (m *model) pageUp() {
+	if len(m.lineRanges) == 0 {
+		return
+	}
+	if m.atEOF {
+		// Step off the EOF marker onto the last reviewable line of
+		// the file; the next pageUp scrolls from there.
+		f := m.currentFile()
+		if last := len(f.Hunks) - 1; last >= 0 {
+			m.hunkIdx = last
+			lh := &f.Hunks[last]
+			m.lineCursor = m.firstNonDelete(lh, len(lh.Lines)-1, -1)
+		}
+		m.atEOF = false
+		m.refreshViewport()
+		return
+	}
+	top := m.viewport.YOffset()
+	height := m.viewport.Height()
+
+	targetRow := top + pageOverlap
+	var marker *lineRange
+	for i := range m.lineRanges {
+		lr := &m.lineRanges[i]
+		if lr.isEOF || lr.kind == review.LineDelete {
+			continue
+		}
+		if lr.topRow >= targetRow {
+			marker = lr
+			break
+		}
+	}
+	if marker == nil {
+		// Fall back to bottommost reviewable in current view.
+		bot := top + height - 1
+		for i := range m.lineRanges {
+			lr := &m.lineRanges[i]
+			if lr.isEOF || lr.kind == review.LineDelete {
+				continue
+			}
+			if lr.topRow > bot {
+				break
+			}
+			marker = lr
+		}
+	}
+	if marker == nil {
+		return
+	}
+
+	// Place marker near the bottom of the new view.
+	desiredTop := marker.topRow - (height - pageOverlap - 1)
+	if desiredTop < 0 {
+		desiredTop = 0
+	}
+	m.viewport.SetYOffset(desiredTop)
+	m.placeCursor(*marker)
+
+	off := m.viewport.YOffset()
+	m.refreshViewport()
+	m.viewport.SetYOffset(off)
+	m.updateDisplayed()
+	if m.mode == modeTree && m.sect == sectionChanges {
+		m.sectIdx[sectionChanges] = m.fileIdx
+	}
 }
 
 // toggleWrap switches the diff/file viewport between soft-wrap (default;
