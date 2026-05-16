@@ -321,6 +321,16 @@ func eventsForFile(s *ReviewSession, path string) []emittableEvent {
 			emittableEvent{Kind: "ReadEnd", Author: s.Reviewer, Date: s.Date, Anchor: a},
 		)
 	}
+	// Same shape for skipped hunks: SkipStart/SkipEnd at the hunk anchor.
+	for a, isSkipped := range s.skipped {
+		if !isSkipped || !strings.HasPrefix(string(a), prefix) {
+			continue
+		}
+		out = append(out,
+			emittableEvent{Kind: "SkipStart", Author: s.Reviewer, Date: s.Date, Anchor: a},
+			emittableEvent{Kind: "SkipEnd", Author: s.Reviewer, Date: s.Date, Anchor: a},
+		)
+	}
 
 	sort.SliceStable(out, func(i, j int) bool {
 		return out[i].Date < out[j].Date
@@ -436,7 +446,7 @@ func countHashes(s string) int {
 var (
 	pathSafeRe   = regexp.MustCompile(`^[A-Za-z0-9_./-]+$`)
 	slugUnsafeR  = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
-	eventHeaderR = regexp.MustCompile(`^### (Comment|Question|ReadStart|ReadEnd|Like|Dislike|Verdict)(?:: (open|requested-changes|approved|denied))? \(From: (.+) <(.+)>, (.+)\)$`)
+	eventHeaderR = regexp.MustCompile(`^### (Comment|Question|ReadStart|ReadEnd|SkipStart|SkipEnd|Like|Dislike|Verdict)(?:: (open|requested-changes|approved|denied))? \(From: (.+) <(.+)>, (.+)\)$`)
 	fileLineR    = regexp.MustCompile(`^> (\d+):(?: (.*))?$`)
 )
 
@@ -596,6 +606,11 @@ func Parse(content string) (*ReviewSession, error) {
 		case "ReadStart", "ReadEnd":
 			// For v1 we mark the anchored hunk read on either start or end.
 			s.read[st.evAnchor] = true
+		case "SkipStart", "SkipEnd":
+			if s.skipped == nil {
+				s.skipped = map[Anchor]bool{}
+			}
+			s.skipped[st.evAnchor] = true
 		case "Verdict":
 			s.verdicts = append(s.verdicts, VerdictEvent{
 				State:   Verdict(st.evParam),
@@ -698,7 +713,7 @@ func Parse(content string) (*ReviewSession, error) {
 			switch st.section {
 			case "Changes":
 				switch st.evKind {
-				case "Like", "Dislike", "ReadStart", "ReadEnd":
+				case "Like", "Dislike", "ReadStart", "ReadEnd", "SkipStart", "SkipEnd":
 					if st.hunkAnchor != "" {
 						st.evAnchor = st.hunkAnchor
 					} else if st.subPath != "" {

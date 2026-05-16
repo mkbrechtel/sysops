@@ -115,6 +115,7 @@ type ReviewSession struct {
 	Scope    Scope
 
 	read     map[Anchor]bool   // hunks the reviewer has finished reading
+	skipped  map[Anchor]bool   // hunks the reviewer intentionally skipped
 	markers  map[Anchor]Marker // good/bad reactions → emitted as Like/Dislike events
 	comments []Comment         // includes both KindComment and KindQuestion
 	issues   []Issue           // free-form issues added during review
@@ -199,6 +200,7 @@ func New(scope Scope, reviewer, path string) *ReviewSession {
 		Verdict:  VerdictOpen,
 		Scope:    scope,
 		read:     map[Anchor]bool{},
+		skipped:  map[Anchor]bool{},
 		markers:  map[Anchor]Marker{},
 	}
 }
@@ -229,6 +231,37 @@ func (s *ReviewSession) ToggleRead(a Anchor) {
 	} else {
 		s.MarkRead(a)
 	}
+}
+
+// Skip state — independent of Read. A skipped hunk is "done" for the
+// purposes of the unread walk but is rendered with its own marker so
+// the reviewer (and future readers of the .review) can see what got
+// deferred vs. actually read.
+
+func (s *ReviewSession) IsSkipped(a Anchor) bool { return s.skipped[a] }
+
+func (s *ReviewSession) MarkSkipped(a Anchor) {
+	if !s.skipped[a] {
+		s.skipped[a] = true
+		s.dirty = true
+	}
+}
+
+func (s *ReviewSession) UnmarkSkipped(a Anchor) {
+	if s.skipped[a] {
+		delete(s.skipped, a)
+		s.dirty = true
+	}
+}
+
+// SkippedAnchors returns the skipped anchors in deterministic order.
+func (s *ReviewSession) SkippedAnchors() []Anchor {
+	out := make([]Anchor, 0, len(s.skipped))
+	for a := range s.skipped {
+		out = append(out, a)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
 }
 
 // ReadAnchors returns the read-marked anchors in deterministic order.

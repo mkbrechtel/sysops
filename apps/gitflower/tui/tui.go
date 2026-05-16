@@ -315,12 +315,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshViewport()
 		return m, m.drainCmds()
 	case delayedReadMsg:
-		// The hunk's rows were all visible at some point and the delay
-		// elapsed; mark read. Schedule a debounced autosave instead of
-		// writing to disk on every single tick.
+		// Delay elapsed for a previously-fully-displayed hunk. Before we
+		// commit the read marker, verify the hunk is STILL at least
+		// partially in the viewport — otherwise the reviewer paged past
+		// too quickly and we'd be rewarding a "spam Space through
+		// everything" workflow with bogus read state. If they moved on,
+		// clear the accumulator so they have to re-display the hunk
+		// before another tick can fire.
 		if m.pendingReads[msg.anchor] {
-			m.sess.MarkRead(msg.anchor)
-			m.scheduleAutoSave()
+			if m.isHunkPartiallyVisible(msg.anchor) {
+				m.sess.MarkRead(msg.anchor)
+				m.scheduleAutoSave()
+			} else {
+				delete(m.displayed, msg.anchor)
+			}
 		}
 		delete(m.pendingReads, msg.anchor)
 		return m, m.drainCmds()
@@ -533,6 +541,8 @@ func (m *model) updateTree(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.openSelectedItem()
 		}
+	case "alt+space":
+		m.skipWalk()
 	case "i":
 		// Add an entry in the current section:
 		//   Verdicts → open the verdict editor (creates a new audit-log
@@ -754,6 +764,8 @@ func (m *model) updateDiff(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.save("marked unread")
 	case " ", "space":
 		m.spaceWalk()
+	case "alt+space":
+		m.skipWalk()
 	case "g", "+":
 		m.applyMarker(review.MarkerGood)
 	case "b", "-":
@@ -913,6 +925,24 @@ func (m *model) cursorNewLine(h *review.Hunk) int {
 	return 0
 }
 
+// skipWalk marks the current unread hunk as intentionally skipped and
+// then jumps to the next unread one (or EOF / next file, just like
+// spaceWalk). Bound to Alt+Space — for content the reviewer doesn't
+// want to read but still wants to record having decided to skip.
+func (m *model) skipWalk() {
+	if !m.atEOF && m.mode == modeDiff {
+		if f := m.currentFile(); f != nil && m.hunkIdx >= 0 && m.hunkIdx < len(f.Hunks) {
+			h := &f.Hunks[m.hunkIdx]
+			a := review.HunkAnchor(f.Path, h.NewStart, h.NewLines)
+			if !m.sess.IsRead(a) && !m.sess.IsSkipped(a) {
+				m.sess.MarkSkipped(a)
+				m.scheduleAutoSave()
+			}
+		}
+	}
+	m.spaceWalk()
+}
+
 // debugSpaceWalk, when not nil, is called once per spaceWalk entry.
 // Used by tests to introspect state transitions.
 var debugSpaceWalk func(stage string, m *model)
@@ -985,15 +1015,15 @@ func (m *model) spaceWalkInFile() {
 		return
 	}
 
-	// Find the next unread hunk at or after the current cursor. We
-	// don't skip the current hunk: if it's still unread, the cursor
-	// belongs at its first reviewable line so the reader sees what
-	// they're about to scroll into.
+	// Find the next unread (and non-skipped) hunk at or after the
+	// current cursor. We don't skip the current hunk: if it's still
+	// pending, the cursor belongs at its first reviewable line so the
+	// reader sees what they're about to scroll into.
 	nextHunkIdx := -1
 	for hi := max(0, m.hunkIdx); hi < len(f.Hunks); hi++ {
 		h := &f.Hunks[hi]
 		a := review.HunkAnchor(f.Path, h.NewStart, h.NewLines)
-		if m.sess.IsRead(a) {
+		if m.sess.IsRead(a) || m.sess.IsSkipped(a) {
 			continue
 		}
 		nextHunkIdx = hi
@@ -1049,7 +1079,9 @@ func (m *model) spaceWalkInFile() {
 	}
 }
 
-// fileHasUnread reports whether any hunk in m.files[fi] is still unread.
+// fileHasUnread reports whether any hunk in m.files[fi] is still
+// unread AND not skipped. A skipped hunk counts as "done" for walk
+// advancement so Alt+Space (skip-to-next-unread) actually advances.
 func (m *model) fileHasUnread(fi int) bool {
 	if fi < 0 || fi >= len(m.files) {
 		return false
@@ -1057,7 +1089,7 @@ func (m *model) fileHasUnread(fi int) bool {
 	f := &m.files[fi]
 	for _, h := range f.Hunks {
 		a := review.HunkAnchor(f.Path, h.NewStart, h.NewLines)
-		if !m.sess.IsRead(a) {
+		if !m.sess.IsRead(a) && !m.sess.IsSkipped(a) {
 			return true
 		}
 	}
@@ -1765,6 +1797,20 @@ func (m *model) applyMarker(mk review.Marker) {
 // partial-read tracking
 // ---------------------------------------------------------------------
 
+// isHunkPartiallyVisible reports whether any rendered row of the hunk
+// is inside the current viewport right now.
+func (m *model) isHunkPartiallyVisible(a review.Anchor) bool {
+	top := m.viewport.YOffset()
+	bot := top + m.viewport.Height() - 1
+	for _, r := range m.hunkRanges {
+		if r.anchor != a {
+			continue
+		}
+		return r.botRow >= top && r.topRow <= bot
+	}
+	return false
+}
+
 func (m *model) isHunkFullyDisplayed(a review.Anchor) bool {
 	for _, r := range m.hunkRanges {
 		if r.anchor != a {
@@ -1871,8 +1917,19 @@ func (m *model) refreshViewport() {
 // ---------------------------------------------------------------------
 
 var (
-	styleAdd      = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	styleDel      = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	// Add/Delete lines render with a coloured background. Two
+	// brightnesses: stronger when the hunk is still unread (so it
+	// pulls attention), softer once it's been read or skipped (so
+	// the eye glides past).
+	styleAddUnread = lipgloss.NewStyle().Background(lipgloss.Color("28")) // mid green
+	styleAddRead   = lipgloss.NewStyle().Background(lipgloss.Color("22")) // dim green
+	styleAddSkip   = lipgloss.NewStyle().Background(lipgloss.Color("100")) // muted olive
+	styleDelUnread = lipgloss.NewStyle().Background(lipgloss.Color("88")) // mid red
+	styleDelRead   = lipgloss.NewStyle().Background(lipgloss.Color("52")) // dim red
+	styleDelSkip   = lipgloss.NewStyle().Background(lipgloss.Color("94")) // muted brown-red
+	// Back-compat aliases (used by legacy call sites; pick the unread variants).
+	styleAdd      = styleAddUnread
+	styleDel      = styleDelUnread
 	styleCtx      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	styleHunk     = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
 	styleCursor   = lipgloss.NewStyle().Background(lipgloss.Color("237"))
@@ -2208,13 +2265,29 @@ func renderFileDiff(m *model) (body string, ranges []hunkRange, lines []lineRang
 			}
 			var sign string
 			var styleLn lipgloss.Style
+			read := m.sess.IsRead(anchor)
+			skipped := m.sess.IsSkipped(anchor)
 			switch ln.Kind {
 			case review.LineAdd:
 				sign = "+ "
-				styleLn = styleAdd
+				switch {
+				case skipped:
+					styleLn = styleAddSkip
+				case read:
+					styleLn = styleAddRead
+				default:
+					styleLn = styleAddUnread
+				}
 			case review.LineDelete:
 				sign = "- "
-				styleLn = styleDel
+				switch {
+				case skipped:
+					styleLn = styleDelSkip
+				case read:
+					styleLn = styleDelRead
+				default:
+					styleLn = styleDelUnread
+				}
 			default:
 				sign = "  "
 				styleLn = styleCtx
