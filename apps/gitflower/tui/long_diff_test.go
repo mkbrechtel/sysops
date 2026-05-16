@@ -307,6 +307,111 @@ func TestFastSpamDoesNotMarkUnseenHunksRead(t *testing.T) {
 	}
 }
 
+// TestSidebarSkipFolder: in tree mode, pressing 's' on a folder row
+// in the Changes sidebar marks every line in every file under that
+// folder as Skipped.
+func TestSidebarSkipFolder(t *testing.T) {
+	patchA := buildAddPatch("dir/a.txt", 5)
+	patchB := buildAddPatch("dir/b.txt", 7)
+	combined := patchA + "\n" + patchB
+	scope := review.Scope{
+		Branch: "feature", Base: "main",
+		TipSHA: "abc1234567890", BaseSHA: "0000111122223333",
+		Diff: "main..feature", Title: "skip-folder",
+		Commits: []review.Commit{{SHA: "abc1234567890", Short: "abc1234", Subject: "x"}},
+		Files:   []string{"dir/a.txt", "dir/b.txt"},
+		RawDiff: combined,
+		FilePatches: map[string]string{
+			"dir/a.txt": patchA, "dir/b.txt": patchB,
+		},
+		CommitPatches: map[string]string{"abc1234567890": "From abc1234\n"},
+	}
+	tmp := t.TempDir()
+	sess := review.New(scope, "tester@example.com", filepath.Join(tmp, "x.review"))
+	m := newModel(sess, tmp, 1000.0)
+	m = step(t, m, tea.WindowSizeMsg{Width: 200, Height: 30})
+
+	// Force render so changesRows is populated, then ensure we're on
+	// sectionChanges and position the cursor on the "dir/" folder row.
+	_ = m.sectionItems(sectionChanges)
+	m.sect = sectionChanges
+	for i, row := range m.changesRows {
+		if row.kind == tnDir && row.fullPath == "dir" {
+			m.sectIdx[sectionChanges] = i
+			break
+		}
+	}
+
+	// 's' on the folder should skip every reviewable line in every
+	// file under it.
+	m = key(t, m, 's', "s")
+	for fi, f := range m.files {
+		if strings.HasPrefix(f.Path, "commit:") {
+			continue
+		}
+		for hi, h := range f.Hunks {
+			for li, ln := range h.Lines {
+				if ln.Kind != review.LineAdd && ln.Kind != review.LineDelete {
+					continue
+				}
+				lk := lineKey{fileIdx: fi, hunkIdx: hi, lineIdx: li}
+				if !m.lineSkipped[lk] {
+					t.Errorf("expected %+v in dir/%s skipped", lk, f.Path)
+				}
+			}
+		}
+	}
+}
+
+// TestSpaceThenCommentAddsAnchoredComment: regression for the e2e
+// flow — drill in via Space, press 'c' (open comment editor), type a
+// body, submit. The comment must land in m.sess.Comments() with a
+// proper file:line anchor so it renders under the file's diff.
+func TestSpaceThenCommentAddsAnchoredComment(t *testing.T) {
+	scope := review.Scope{
+		Branch:  "feature",
+		Base:    "main",
+		TipSHA:  "abc1234567890",
+		BaseSHA: "0000111122223333",
+		Diff:    "main..feature",
+		Title:   "c",
+		Commits: []review.Commit{{SHA: "abc1234567890", Short: "abc1234", Subject: "c"}},
+		Files:   []string{"foo.txt"},
+		RawDiff: buildAddPatch("foo.txt", 5),
+		FilePatches: map[string]string{
+			"foo.txt": buildAddPatch("foo.txt", 5),
+		},
+		CommitPatches: map[string]string{"abc1234567890": "From abc1234\n"},
+	}
+	tmp := t.TempDir()
+	sess := review.New(scope, "tester@example.com", filepath.Join(tmp, "c.review"))
+	m := newModel(sess, tmp, 1000.0)
+	m = step(t, m, tea.WindowSizeMsg{Width: 80, Height: 30})
+
+	m = key(t, m, ' ', " ") // drill in
+	if m.mode != modeDiff {
+		t.Fatalf("after Space: mode %v want modeDiff", m.mode)
+	}
+	m = key(t, m, 'c', "c") // open comment editor
+	if m.edit != editComment {
+		t.Fatalf("after 'c': edit %v want editComment", m.edit)
+	}
+	for _, r := range "hello" {
+		m = key(t, m, r, string(r))
+	}
+	m = step(t, m, tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt})
+	if got := len(m.sess.Comments()); got != 1 {
+		t.Fatalf("expected 1 comment, got %d", got)
+	}
+	c := m.sess.Comments()[0]
+	if !strings.HasPrefix(string(c.Anchor), "foo.txt:") {
+		t.Errorf("comment anchor = %q, want prefix \"foo.txt:\"", c.Anchor)
+	}
+	if c.Text != "hello" {
+		t.Errorf("comment text = %q, want \"hello\"", c.Text)
+	}
+}
+
 // TestSkippedLinesBecomeReadWhenViewed: a Skipped line is not a "do
 // not show" flag — it just keeps the line from counting as unread in
 // the walk. If the reviewer dwells on a previously-skipped line long

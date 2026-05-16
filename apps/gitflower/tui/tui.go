@@ -19,6 +19,7 @@ package tui
 import (
 	"fmt"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -131,6 +132,27 @@ type hunkRange struct {
 	topRow, botRow int
 }
 
+// treeNodeKind discriminates a folder row from a file row in the
+// rendered Changes / Tree sidebars.
+type treeNodeKind int
+
+const (
+	tnFile treeNodeKind = iota
+	tnDir
+)
+
+// treeRow is one visible row in a folder-aware sidebar. It carries
+// just enough metadata to render the row and to act on it (drill in,
+// skip, expand/collapse).
+type treeRow struct {
+	kind    treeNodeKind
+	depth   int
+	dirPath string // for tnDir: the folder path (no trailing slash); for tnFile: containing folder
+	name    string // basename
+	fullPath string // for tnFile: the file path; for tnDir: same as dirPath
+	fileIdx int    // for tnFile in Changes: index into m.files; -1 otherwise
+}
+
 // lineKey is the in-memory identity of a single diff line. We use
 // (fileIdx, hunkIdx, lineIdx) instead of a string anchor because the
 // reading model doesn't care about persistence — saves go through the
@@ -166,6 +188,16 @@ type model struct {
 	// Tree mode state.
 	sect    section
 	sectIdx [numSections]int // per-section item index
+
+	// Folder-tree state for the sidebar's Changes view. Folders with
+	// any unread file are expanded by default; user can toggle.
+	changesExpanded map[string]bool // dir path → expanded; absent = default
+	// Folder-tree state for the sectionTree (file-tree at tip SHA).
+	// All folders collapsed by default; user expands manually.
+	fileTreeExpanded map[string]bool
+	// Cached visible rows per section (built lazily by sectionItems).
+	changesRows []treeRow
+	fileTreeRows []treeRow
 
 	// Diff mode state. Cursor is always on exactly one line.
 	fileIdx    int
@@ -285,7 +317,9 @@ func newModel(sess *review.ReviewSession, root string, readRate float64) *model 
 		readRate:    readRate,
 		lineRead:    map[lineKey]bool{},
 		lineSkipped: map[lineKey]bool{},
-		lastViewOffset: -1,
+		lastViewOffset:  -1,
+		changesExpanded:  map[string]bool{},
+		fileTreeExpanded: map[string]bool{},
 	}
 	return m
 }
@@ -407,11 +441,17 @@ func (m *model) drainCmds() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// sidebarVisible decides whether to show the section sidebar. In line
-// modes we drop it so the diff/file gets the whole screen — the user can
-// always Esc/left-arrow back to section mode to see it again.
+// sidebarMinTotalWidth is the minimum terminal width at which the
+// section sidebar is shown. Below this the screen is too narrow to
+// usefully split, so we give the diff/file/peek the whole screen.
+const sidebarMinTotalWidth = 150
+
+// sidebarVisible decides whether to show the section sidebar.
+// Conditions: we're in section mode AND the window is wide enough.
+// In line modes the sidebar is always hidden — the reviewer is
+// reading content, the section list isn't useful.
 func (m *model) sidebarVisible() bool {
-	return m.mode == modeTree
+	return m.mode == modeTree && m.width >= sidebarMinTotalWidth
 }
 
 func (m *model) resize() {
@@ -516,22 +556,10 @@ func (m *model) sectionItems(s section) []string {
 		}
 		return out
 	case sectionChanges:
-		// Show every entry in m.files (including the commit-virtual
-		// files) with its per-line review progress: "<path>  R/T"
-		// where R = lines marked read and T = total reviewable lines.
-		// Keeping the index 1:1 with m.files avoids translating
-		// sidebar position ↔ fileIdx everywhere else.
-		out := make([]string, len(m.files))
-		for fi, f := range m.files {
-			r, t := m.fileLineCounts(fi)
-			label := f.Path
-			if strings.HasPrefix(label, "commit:") {
-				rest := strings.TrimPrefix(label, "commit:")
-				if i := strings.Index(rest, ":"); i > 0 {
-					label = "commit " + rest[:i] + "  " + rest[i+1:]
-				}
-			}
-			out[fi] = fmt.Sprintf("%s  %d/%d", label, r, t)
+		m.changesRows = m.buildChangesRows()
+		out := make([]string, len(m.changesRows))
+		for i, row := range m.changesRows {
+			out[i] = m.renderTreeRow(row, sectionChanges)
 		}
 		return out
 	case sectionCommits:
@@ -541,7 +569,12 @@ func (m *model) sectionItems(s section) []string {
 		}
 		return out
 	case sectionTree:
-		return m.treeFiles
+		m.fileTreeRows = m.buildFileTreeRows()
+		out := make([]string, len(m.fileTreeRows))
+		for i, row := range m.fileTreeRows {
+			out[i] = m.renderTreeRow(row, sectionTree)
+		}
+		return out
 	case sectionFileReview:
 		frs := m.sess.FileReviews()
 		out := make([]string, len(frs))
@@ -557,9 +590,262 @@ func (m *model) currentSectionItems() []string {
 	return m.sectionItems(m.sect)
 }
 
+// buildChangesRows constructs the folder tree for the Changes
+// sidebar. Files are grouped by their containing directory; commit
+// virtual files are excluded. A folder is expanded by default if any
+// of its files has at least one unread reviewable line.
+func (m *model) buildChangesRows() []treeRow {
+	// Pair each real file index with its path.
+	type fp struct{ idx int; path string }
+	var files []fp
+	for fi, f := range m.files {
+		if strings.HasPrefix(f.Path, "commit:") {
+			continue
+		}
+		files = append(files, fp{fi, f.Path})
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].path < files[j].path })
+
+	// Collect directories that contain unread files (for default expand).
+	hasUnread := map[string]bool{}
+	for _, fpr := range files {
+		if !m.fileHasUnread(fpr.idx) {
+			continue
+		}
+		dir := pathDir(fpr.path)
+		for dir != "" {
+			hasUnread[dir] = true
+			dir = pathDir(dir)
+		}
+		hasUnread[""] = true
+	}
+
+	expanded := func(dir string) bool {
+		if v, ok := m.changesExpanded[dir]; ok {
+			return v
+		}
+		return hasUnread[dir]
+	}
+
+	var rows []treeRow
+	var walkDir func(prefix string, depth int)
+	walkDir = func(prefix string, depth int) {
+		// Children of `prefix`: gather direct subdirs and direct files.
+		subdirs := map[string]bool{}
+		var direct []fp
+		for _, fpr := range files {
+			if !pathInDir(fpr.path, prefix) {
+				continue
+			}
+			rest := fpr.path
+			if prefix != "" {
+				rest = strings.TrimPrefix(fpr.path, prefix+"/")
+			}
+			if i := strings.Index(rest, "/"); i > 0 {
+				subdirs[rest[:i]] = true
+			} else {
+				direct = append(direct, fpr)
+			}
+		}
+		// Stable order: subdirs first (sorted), then files (sorted).
+		dirNames := make([]string, 0, len(subdirs))
+		for d := range subdirs {
+			dirNames = append(dirNames, d)
+		}
+		sort.Strings(dirNames)
+		for _, name := range dirNames {
+			full := name
+			if prefix != "" {
+				full = prefix + "/" + name
+			}
+			rows = append(rows, treeRow{
+				kind:     tnDir,
+				depth:    depth,
+				dirPath:  full,
+				name:     name,
+				fullPath: full,
+				fileIdx:  -1,
+			})
+			if expanded(full) {
+				walkDir(full, depth+1)
+			}
+		}
+		for _, fpr := range direct {
+			base := fpr.path
+			if i := strings.LastIndex(base, "/"); i >= 0 {
+				base = base[i+1:]
+			}
+			rows = append(rows, treeRow{
+				kind:     tnFile,
+				depth:    depth,
+				dirPath:  prefix,
+				name:     base,
+				fullPath: fpr.path,
+				fileIdx:  fpr.idx,
+			})
+		}
+	}
+	walkDir("", 0)
+	return rows
+}
+
+// buildFileTreeRows builds the sidebar tree for sectionTree (the
+// file tree at tip SHA). Folders all default to collapsed; the user
+// expands them manually.
+func (m *model) buildFileTreeRows() []treeRow {
+	paths := append([]string(nil), m.treeFiles...)
+	sort.Strings(paths)
+	expanded := func(dir string) bool {
+		return m.fileTreeExpanded[dir]
+	}
+	var rows []treeRow
+	var walkDir func(prefix string, depth int)
+	walkDir = func(prefix string, depth int) {
+		subdirs := map[string]bool{}
+		var direct []string
+		for _, p := range paths {
+			if !pathInDir(p, prefix) {
+				continue
+			}
+			rest := p
+			if prefix != "" {
+				rest = strings.TrimPrefix(p, prefix+"/")
+			}
+			if i := strings.Index(rest, "/"); i > 0 {
+				subdirs[rest[:i]] = true
+			} else {
+				direct = append(direct, p)
+			}
+		}
+		dirNames := make([]string, 0, len(subdirs))
+		for d := range subdirs {
+			dirNames = append(dirNames, d)
+		}
+		sort.Strings(dirNames)
+		for _, name := range dirNames {
+			full := name
+			if prefix != "" {
+				full = prefix + "/" + name
+			}
+			rows = append(rows, treeRow{
+				kind: tnDir, depth: depth,
+				dirPath: full, name: name, fullPath: full, fileIdx: -1,
+			})
+			if expanded(full) {
+				walkDir(full, depth+1)
+			}
+		}
+		for _, p := range direct {
+			base := p
+			if i := strings.LastIndex(p, "/"); i >= 0 {
+				base = p[i+1:]
+			}
+			rows = append(rows, treeRow{
+				kind: tnFile, depth: depth,
+				dirPath: prefix, name: base, fullPath: p, fileIdx: -1,
+			})
+		}
+	}
+	walkDir("", 0)
+	return rows
+}
+
+// renderTreeRow formats one treeRow for sidebar display. For Changes
+// rows we append the read/total counts when meaningful.
+func (m *model) renderTreeRow(row treeRow, sect section) string {
+	indent := strings.Repeat("  ", row.depth)
+	switch row.kind {
+	case tnDir:
+		marker := "▸"
+		var expanded bool
+		switch sect {
+		case sectionChanges:
+			expanded = m.isChangesDirExpanded(row.fullPath)
+		case sectionTree:
+			expanded = m.fileTreeExpanded[row.fullPath]
+		}
+		if expanded {
+			marker = "▾"
+		}
+		if sect == sectionChanges {
+			r, t := m.dirLineCounts(row.fullPath)
+			return fmt.Sprintf("%s%s %s/  %d/%d", indent, marker, row.name, r, t)
+		}
+		return fmt.Sprintf("%s%s %s/", indent, marker, row.name)
+	case tnFile:
+		if sect == sectionChanges && row.fileIdx >= 0 {
+			r, t := m.fileLineCounts(row.fileIdx)
+			return fmt.Sprintf("%s  %s  %d/%d", indent, row.name, r, t)
+		}
+		return fmt.Sprintf("%s  %s", indent, row.name)
+	}
+	return ""
+}
+
+// isChangesDirExpanded reports whether the given directory is
+// expanded in the Changes sidebar. Respects manual overrides; falls
+// back to "expanded if has unread".
+func (m *model) isChangesDirExpanded(dir string) bool {
+	if v, ok := m.changesExpanded[dir]; ok {
+		return v
+	}
+	for fi, f := range m.files {
+		if strings.HasPrefix(f.Path, "commit:") {
+			continue
+		}
+		if !pathInDir(f.Path, dir) {
+			continue
+		}
+		if m.fileHasUnread(fi) {
+			return true
+		}
+	}
+	return false
+}
+
+// dirLineCounts sums fileLineCounts across every real file under
+// directory `dir`.
+func (m *model) dirLineCounts(dir string) (read, total int) {
+	for fi, f := range m.files {
+		if strings.HasPrefix(f.Path, "commit:") {
+			continue
+		}
+		if !pathInDir(f.Path, dir) {
+			continue
+		}
+		r, t := m.fileLineCounts(fi)
+		read += r
+		total += t
+	}
+	return
+}
+
+// pathDir returns the directory portion of `p`, or "" for top-level.
+func pathDir(p string) string {
+	if i := strings.LastIndex(p, "/"); i >= 0 {
+		return p[:i]
+	}
+	return ""
+}
+
+// pathInDir reports whether path `p` lives under directory `dir` (any
+// depth). dir == "" means root.
+func pathInDir(p, dir string) bool {
+	if dir == "" {
+		return true
+	}
+	return strings.HasPrefix(p, dir+"/")
+}
+
 func (m *model) updateTree(msg tea.Msg) (tea.Model, tea.Cmd) {
 	key, ok := msg.(tea.KeyPressMsg)
 	if !ok {
+		return m, nil
+	}
+	// In section mode, 's' on Changes/Tree means "skip", not "save"
+	// (save is autosaved anyway). Pre-empt before the global handler.
+	if key.String() == "s" && (m.sect == sectionChanges || m.sect == sectionTree) {
+		m.skipFromSidebar()
 		return m, nil
 	}
 	if cmd, done := m.handleGlobal(key.String()); done {
@@ -575,12 +861,45 @@ func (m *model) updateTree(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case "shift+tab":
 		m.sect = section((int(m.sect) + numSections - 1) % numSections)
 	case " ", "space":
-		// On Commits, Space walks commit-by-commit and eventually hands
-		// off to the verdict editor (see spaceWalk). Elsewhere, Space
-		// drills in.
-		if m.sect == sectionCommits || m.sect == sectionVerdicts {
+		// On Commits/Verdicts Space walks via spaceWalk; on Changes
+		// it drills into the first unread file (so folder rows fall
+		// through to the file walk, not a folder toggle); on Tree it
+		// drills into the highlighted file.
+		switch m.sect {
+		case sectionCommits, sectionVerdicts:
 			m.spaceWalk()
-		} else {
+		case sectionChanges:
+			// Drill into the first file with unread content, mirror
+			// the pre-folder-tree behaviour: a fresh model lands on
+			// row 0 of the diff with hunkIdx=0 and lineCursor on the
+			// first reviewable line.
+			fi := -1
+			if row := m.currentChangesRow(); row != nil && row.kind == tnFile {
+				fi = row.fileIdx
+			} else {
+				// On a folder row (or no row yet): pick the first file
+				// with unread content.
+				for i := range m.files {
+					if !strings.HasPrefix(m.files[i].Path, "commit:") && m.fileHasUnread(i) {
+						fi = i
+						break
+					}
+				}
+			}
+			if fi < 0 {
+				m.spaceWalk()
+				return m, nil
+			}
+			m.fileIdx = fi
+			m.hunkIdx = 0
+			m.lineCursor = 0
+			m.atEOF = false
+			if h := m.currentHunk(); h != nil {
+				m.lineCursor = m.firstNonDelete(h, 0, +1)
+			}
+			m.mode = modeDiff
+			m.refreshViewport()
+		default:
 			m.openSelectedItem()
 		}
 	case "alt+space":
@@ -678,9 +997,13 @@ func (m *model) treePrev() {
 func (m *model) onTreeSelectionChanged() {
 	switch m.sect {
 	case sectionChanges:
-		m.fileIdx = m.sectIdx[m.sect]
-		m.hunkIdx = 0
-		m.atEOF = false
+		// Map sidebar row → file. Folder rows have fileIdx=-1; we just
+		// keep the current fileIdx so the right-pane peek stays put.
+		if row := m.currentChangesRow(); row != nil && row.kind == tnFile && row.fileIdx >= 0 {
+			m.fileIdx = row.fileIdx
+			m.hunkIdx = 0
+			m.atEOF = false
+		}
 	case sectionFileReview:
 		idx := m.sectIdx[m.sect]
 		frs := m.sess.FileReviews()
@@ -689,9 +1012,10 @@ func (m *model) onTreeSelectionChanged() {
 			m.fileLines, _ = gitFileLines(m.sess.Scope.TipSHA, m.filePath)
 		}
 	case sectionTree:
-		idx := m.sectIdx[m.sect]
-		if idx < len(m.treeFiles) {
-			m.filePath = m.treeFiles[idx]
+		// File-tree sidebar: only update the right-pane peek when the
+		// row is a file.
+		if row := m.currentFileTreeRow(); row != nil && row.kind == tnFile {
+			m.filePath = row.fullPath
 			m.fileLines, _ = gitFileLines(m.sess.Scope.TipSHA, m.filePath)
 		}
 	case sectionCommits, sectionIssues, sectionSources, sectionVerdicts:
@@ -700,21 +1024,178 @@ func (m *model) onTreeSelectionChanged() {
 	m.refreshViewport()
 }
 
+// skipFromSidebar marks every reviewable line in the file (or every
+// file under the folder) under the sidebar cursor as Skipped. Bound
+// to 's' in section mode on Changes / Tree. Lines already marked Read
+// are left alone (read takes precedence). Triggers a re-render so the
+// new state shows immediately in the count column.
+func (m *model) skipFromSidebar() {
+	var paths []string
+	switch m.sect {
+	case sectionChanges:
+		row := m.currentChangesRow()
+		if row == nil {
+			return
+		}
+		if row.kind == tnFile {
+			paths = []string{row.fullPath}
+		} else {
+			for fi, f := range m.files {
+				_ = fi
+				if !strings.HasPrefix(f.Path, "commit:") && pathInDir(f.Path, row.fullPath) {
+					paths = append(paths, f.Path)
+				}
+			}
+		}
+	case sectionTree:
+		row := m.currentFileTreeRow()
+		if row == nil {
+			return
+		}
+		// We only know the diff scope's files for read state; Tree
+		// rows that aren't in the diff just get a status note.
+		var target string
+		if row.kind == tnFile {
+			target = row.fullPath
+		} else {
+			target = row.fullPath
+		}
+		for _, f := range m.files {
+			if !strings.HasPrefix(f.Path, "commit:") {
+				if row.kind == tnFile && f.Path == target {
+					paths = append(paths, f.Path)
+				} else if row.kind == tnDir && pathInDir(f.Path, target) {
+					paths = append(paths, f.Path)
+				}
+			}
+		}
+		if len(paths) == 0 {
+			m.status = "no diff content under " + target
+			return
+		}
+	}
+	skipped := 0
+	for _, p := range paths {
+		fi := m.findFileIdx(p)
+		if fi < 0 {
+			continue
+		}
+		f := &m.files[fi]
+		for hi, h := range f.Hunks {
+			for li, ln := range h.Lines {
+				if ln.Kind != review.LineAdd && ln.Kind != review.LineDelete {
+					continue
+				}
+				lk := lineKey{fileIdx: fi, hunkIdx: hi, lineIdx: li}
+				if m.lineRead[lk] || m.lineSkipped[lk] {
+					continue
+				}
+				m.lineSkipped[lk] = true
+				skipped++
+			}
+		}
+	}
+	if skipped > 0 {
+		m.scheduleAutoSave()
+		m.status = fmt.Sprintf("skipped %d line(s) across %d file(s)", skipped, len(paths))
+	} else {
+		m.status = "nothing to skip"
+	}
+	m.refreshViewport()
+}
+
+// findFileIdx returns the m.files index for a path, or -1 if absent.
+func (m *model) findFileIdx(path string) int {
+	for i, f := range m.files {
+		if f.Path == path {
+			return i
+		}
+	}
+	return -1
+}
+
+// changesRowForFile returns the index in changesRows of the file row
+// matching fileIdx (or -1).
+func (m *model) changesRowForFile(fileIdx int) int {
+	if len(m.changesRows) == 0 {
+		m.changesRows = m.buildChangesRows()
+	}
+	for i, row := range m.changesRows {
+		if row.kind == tnFile && row.fileIdx == fileIdx {
+			return i
+		}
+	}
+	return -1
+}
+
+// changesFileFromRow returns the m.files index for the row, or -1 if
+// the row isn't a file row.
+func (m *model) changesFileFromRow(rowIdx int) int {
+	if len(m.changesRows) == 0 {
+		m.changesRows = m.buildChangesRows()
+	}
+	if rowIdx < 0 || rowIdx >= len(m.changesRows) {
+		return -1
+	}
+	row := m.changesRows[rowIdx]
+	if row.kind != tnFile {
+		return -1
+	}
+	return row.fileIdx
+}
+
+// currentChangesRow returns the treeRow under the Changes sidebar
+// cursor, or nil if the cache hasn't been built yet.
+func (m *model) currentChangesRow() *treeRow {
+	if len(m.changesRows) == 0 {
+		m.changesRows = m.buildChangesRows()
+	}
+	idx := m.sectIdx[sectionChanges]
+	if idx < 0 || idx >= len(m.changesRows) {
+		return nil
+	}
+	return &m.changesRows[idx]
+}
+
+// currentFileTreeRow returns the treeRow under the Tree sidebar
+// cursor.
+func (m *model) currentFileTreeRow() *treeRow {
+	if len(m.fileTreeRows) == 0 {
+		m.fileTreeRows = m.buildFileTreeRows()
+	}
+	idx := m.sectIdx[sectionTree]
+	if idx < 0 || idx >= len(m.fileTreeRows) {
+		return nil
+	}
+	return &m.fileTreeRows[idx]
+}
+
 // openSelectedItem performs the natural drill-in action.
 func (m *model) openSelectedItem() {
 	switch m.sect {
 	case sectionSources, sectionVerdicts:
 		// peek-only; drilling in just keeps the right pane content
 	case sectionChanges:
-		m.fileIdx = m.sectIdx[m.sect]
-		m.hunkIdx = 0
-		m.lineCursor = 0
-		m.atEOF = false
-		if h := m.currentHunk(); h != nil {
-			m.lineCursor = m.firstNonDelete(h, 0, +1)
+		row := m.currentChangesRow()
+		if row == nil {
+			return
 		}
-		m.mode = modeDiff
-		m.refreshViewport()
+		switch row.kind {
+		case tnDir:
+			// Toggle folder expansion in place.
+			m.changesExpanded[row.fullPath] = !m.isChangesDirExpanded(row.fullPath)
+			m.refreshViewport()
+		case tnFile:
+			m.fileIdx = row.fileIdx
+			m.hunkIdx = 0
+			m.lineCursor = 0
+			m.atEOF = false
+			if h := m.currentHunk(); h != nil {
+				m.lineCursor = m.firstNonDelete(h, 0, +1)
+			}
+			m.mode = modeDiff
+			m.refreshViewport()
+		}
 	case sectionFileReview:
 		idx := m.sectIdx[m.sect]
 		frs := m.sess.FileReviews()
@@ -722,12 +1203,16 @@ func (m *model) openSelectedItem() {
 			m.enterFileReview(frs[idx].Path)
 		}
 	case sectionTree:
-		// Drilling into Tree opens File mode on the chosen path. The
-		// FileReview entry gets created on the fly so the visit lands
-		// in the # File Review section of the saved .review.
-		idx := m.sectIdx[m.sect]
-		if idx < len(m.treeFiles) {
-			m.enterFileReview(m.treeFiles[idx])
+		row := m.currentFileTreeRow()
+		if row == nil {
+			return
+		}
+		switch row.kind {
+		case tnDir:
+			m.fileTreeExpanded[row.fullPath] = !m.fileTreeExpanded[row.fullPath]
+			m.refreshViewport()
+		case tnFile:
+			m.enterFileReview(row.fullPath)
 		}
 	case sectionCommits:
 		// For v1: enter Diff mode on the changed-files list, leaving commit
@@ -772,7 +1257,7 @@ func (m *model) updateDiff(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Park the section cursor on the file we were just reviewing so
 		// the user lands back on it in section mode.
 		m.sect = sectionChanges
-		m.sectIdx[sectionChanges] = m.fileIdx
+		if r := m.changesRowForFile(m.fileIdx); r >= 0 { m.sectIdx[sectionChanges] = r }
 		m.mode = modeTree
 		m.refreshViewport()
 	case "right", "l":
@@ -933,7 +1418,7 @@ func (m *model) currentFile() *review.File {
 
 func (m *model) currentHunk() *review.Hunk {
 	f := m.currentFile()
-	if len(f.Hunks) == 0 || m.hunkIdx >= len(f.Hunks) {
+	if f == nil || len(f.Hunks) == 0 || m.hunkIdx < 0 || m.hunkIdx >= len(f.Hunks) {
 		return nil
 	}
 	return &f.Hunks[m.hunkIdx]
@@ -1035,7 +1520,9 @@ func (m *model) spaceWalk() {
 	// Section mode → drill in.
 	if m.mode == modeTree {
 		if m.sect == sectionChanges {
-			m.fileIdx = m.sectIdx[sectionChanges]
+			if fi := m.changesFileFromRow(m.sectIdx[sectionChanges]); fi >= 0 {
+				m.fileIdx = fi
+			}
 		}
 		m.hunkIdx = -1
 		m.atEOF = false
@@ -1375,7 +1862,7 @@ func (m *model) scrollViewport(msg tea.Msg) tea.Cmd {
 			}
 		}
 		if m.mode == modeTree && m.sect == sectionChanges {
-			m.sectIdx[sectionChanges] = m.fileIdx
+			if r := m.changesRowForFile(m.fileIdx); r >= 0 { m.sectIdx[sectionChanges] = r }
 		}
 		if oldHunk != m.hunkIdx || oldLine != m.lineCursor || oldEOF != m.atEOF {
 			off := m.viewport.YOffset()
@@ -1469,7 +1956,7 @@ func (m *model) pageDown() {
 	m.viewport.SetYOffset(off)
 	m.updateDisplayed()
 	if m.mode == modeTree && m.sect == sectionChanges {
-		m.sectIdx[sectionChanges] = m.fileIdx
+		if r := m.changesRowForFile(m.fileIdx); r >= 0 { m.sectIdx[sectionChanges] = r }
 	}
 }
 
@@ -1542,7 +2029,7 @@ func (m *model) pageUp() {
 	m.viewport.SetYOffset(off)
 	m.updateDisplayed()
 	if m.mode == modeTree && m.sect == sectionChanges {
-		m.sectIdx[sectionChanges] = m.fileIdx
+		if r := m.changesRowForFile(m.fileIdx); r >= 0 { m.sectIdx[sectionChanges] = r }
 	}
 }
 
@@ -2140,17 +2627,9 @@ func (m *model) viewSidebar() string {
 			if m.mode == modeTree && m.sect == sec && i == m.sectIdx[sec] {
 				line = styleCursor.Render(line)
 			}
-			if sec == sectionChanges {
-				r, t := m.fileReadStats(i)
-				if t > 0 {
-					stat := fmt.Sprintf(" %d/%d", r, t)
-					if r == t {
-						line += styleRead.Render(stat)
-					} else {
-						line += styleUnread.Render(stat)
-					}
-				}
-			}
+			// Note: Changes rows already carry "R/T" progress as part
+			// of their label (see renderTreeRow / sectionItems), so no
+			// extra stats column here.
 			lines = append(lines, line)
 		}
 		lines = append(lines, "")
@@ -2174,17 +2653,8 @@ func (m *model) viewSidebar() string {
 }
 
 func (m *model) fileReadStats(idx int) (read, total int) {
-	if idx >= len(m.files) {
-		return 0, 0
-	}
-	f := m.files[idx]
-	total = len(f.Hunks)
-	for _, h := range f.Hunks {
-		if m.sess.IsRead(review.HunkAnchor(f.Path, h.NewStart, h.NewLines)) {
-			read++
-		}
-	}
-	return
+	// Kept for any external callers; new code should use fileLineCounts.
+	return m.fileLineCounts(idx)
 }
 
 func (m *model) viewMain() string {
