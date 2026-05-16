@@ -48,6 +48,10 @@ func TestReviewViaPTY(t *testing.T) {
 		"review",
 		"--base", "main",
 		"--read-rate", "1000", // fast reader; ticks fire quickly in tests
+		// Mirror the note body to a file so this test can still
+		// assert against on-disk content. The notes ref is the
+		// source of truth now; -o is the opt-in mirror.
+		"-o", "reviews/feature.review",
 		"feature",
 	)
 	cmd.Dir = repo

@@ -16,17 +16,25 @@ import (
 )
 
 func cmdReview(args []string, stdout, stderr io.Writer) int {
+	// Subcommand split: `gitflower review merge ...` archives the
+	// review note into the branch as an `-s ours` merge.
+	if len(args) > 0 && args[0] == "merge" {
+		return cmdReviewMerge(args[1:], stdout, stderr)
+	}
 	fs := flag.NewFlagSet("review", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	out := fs.String("o", "", "output path (default: <repo>/reviews/<to>-<sha>-from-<from>-<sha>.review)")
-	baseOverride := fs.String("base", "", "override the base ref (default: parsed from `Base:` line, fallback main)")
-	noTUI := fs.Bool("no-tui", false, "scaffold the review file and exit; do not launch the TUI")
-	readRate := fs.Float64("read-rate", tui.DefaultReadRate, "assumed reading speed in lines/second; per-hunk read delay = lines / read-rate")
+	out := fs.String("o", "", "also write the review body to this file path (default: notes-only, no on-disk file)")
+	baseOverride := fs.String("base", "", "override the base ref (default: last [Review] merge, then main)")
+	noTUI := fs.Bool("no-tui", false, "scaffold the review and exit; do not launch the TUI")
+	readRate := fs.Float64("read-rate", tui.DefaultReadRate, "assumed reading speed in lines/second")
+	notesRef := fs.String("notes-ref", review.DefaultNotesRef, "git notes ref to load/store the review body in")
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: gitflower review [-o path] [--base ref] [--no-tui] [<branch>]")
+		fmt.Fprintln(stderr, "Usage: gitflower review [-o path] [--base ref] [--notes-ref ref] [--no-tui] [<branch>]")
+		fmt.Fprintln(stderr, "       gitflower review merge [--include-file]")
 		fmt.Fprintln(stderr)
 		fmt.Fprintln(stderr, "Open a review for <branch> (default: current HEAD).")
-		fmt.Fprintln(stderr, "Writes to reviews/<to>-<sha>-from-<from>-<sha>.review and launches the TUI.")
+		fmt.Fprintln(stderr, "Review state lives as a note on refs/notes/review for the branch tip;")
+		fmt.Fprintln(stderr, "pass -o to also mirror the body into a file on disk.")
 		fmt.Fprintln(stderr)
 		fs.PrintDefaults()
 	}
@@ -52,31 +60,42 @@ func cmdReview(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	tipSHA := scope.TipSHA
+
+	// Optional file mirror.
 	path := *out
-	if path == "" {
-		root, err := gitOutput("rev-parse", "--show-toplevel")
-		if err != nil {
-			fmt.Fprintf(stderr, "review: %v\n", err)
-			return 1
+	if path != "" && !strings.HasPrefix(path, "/") {
+		root, _ := gitOutput("rev-parse", "--show-toplevel")
+		if root != "" {
+			path = root + "/" + path
 		}
-		path = review.DefaultPath(root, scope)
 	}
 
-	var sess *review.ReviewSession
-	if fileExists(path) {
+	// Try loading the existing note first (notes are the source of
+	// truth for ongoing review state).
+	sess, err := review.LoadFromNote(*notesRef, tipSHA)
+	if err != nil {
+		fmt.Fprintf(stderr, "review: load note: %v\n", err)
+		return 1
+	}
+	if sess == nil && path != "" && fileExists(path) {
+		// Migration path: an on-disk review for this branch tip is
+		// loaded into the note on first run.
 		sess, err = review.Load(path)
 		if err != nil {
 			fmt.Fprintf(stderr, "review: load %s: %v\n", path, err)
 			return 1
 		}
-		// Refresh scope (commits, files, diff) from current git state.
-		sess.Scope = *scope
-		sess.Path = path
-		if sess.Reviewer == "" {
-			sess.Reviewer = reviewer
-		}
-	} else {
+	}
+	if sess == nil {
 		sess = review.New(*scope, reviewer, path)
+	}
+	sess.Scope = *scope
+	sess.NotesRef = *notesRef
+	sess.NotesSHA = tipSHA
+	sess.Path = path
+	if sess.Reviewer == "" {
+		sess.Reviewer = reviewer
 	}
 
 	if *noTUI {
@@ -84,7 +103,10 @@ func cmdReview(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "review: save: %v\n", err)
 			return 1
 		}
-		fmt.Fprintln(stdout, path)
+		fmt.Fprintf(stdout, "note: %s @ %s\n", *notesRef, tipSHA[:12])
+		if path != "" {
+			fmt.Fprintln(stdout, path)
+		}
 		return 0
 	}
 
@@ -92,7 +114,10 @@ func cmdReview(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "review: tui: %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(stdout, path)
+	fmt.Fprintf(stdout, "note: %s @ %s\n", *notesRef, tipSHA[:12])
+	if path != "" {
+		fmt.Fprintln(stdout, path)
+	}
 	return 0
 }
 

@@ -53,6 +53,15 @@ func ScopeFor(branch, base string) (*Scope, error) {
 	}
 
 	if base == "" {
+		// Prefer the most recent [Review] merge commit on the branch
+		// as the base — "the next review starts from the last review
+		// archive". Falls back to the [Merge Request] convention
+		// (parseBaseFromBranch) and finally "main".
+		if sha, err := LastReviewMergeSHA(branch); err == nil && sha != "" {
+			base = sha
+		}
+	}
+	if base == "" {
 		base = parseBaseFromBranch(branch)
 	}
 	if base == "" {

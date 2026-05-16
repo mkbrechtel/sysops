@@ -121,6 +121,12 @@ type ReviewSession struct {
 	Summary  string // free-form verdict explanation (markdown)
 	Scope    Scope
 
+	// NotesRef + NotesSHA: when both are non-empty, Save() writes
+	// the rendered body as the note for NotesSHA on NotesRef instead
+	// of (or in addition to) writing a file at Path.
+	NotesRef string
+	NotesSHA string
+
 	read     map[Anchor]bool   // hunks the reviewer has finished reading
 	skipped  map[Anchor]bool   // hunks the reviewer intentionally skipped
 	markers  map[Anchor]Marker // good/bad reactions → emitted as Like/Dislike events
@@ -407,17 +413,27 @@ func (s *ReviewSession) SetSummary(text string) {
 	}
 }
 
-// Save serialises the session.
+// Save serialises the session. If NotesSHA is set, writes the body
+// as the note for that commit on NotesRef; otherwise (or in
+// addition, when Path is also set) writes to Path on disk. So a
+// session can be notes-only, file-only, or both.
 func (s *ReviewSession) Save() error {
 	if s.Date == "" {
 		s.Date = time.Now().UTC().Format(time.RFC3339)
 	}
 	body := Render(s)
-	if err := os.MkdirAll(filepath.Dir(s.Path), 0o755); err != nil {
-		return err
+	if s.NotesSHA != "" {
+		if err := WriteNote(s.NotesRef, s.NotesSHA, body); err != nil {
+			return err
+		}
 	}
-	if err := os.WriteFile(s.Path, []byte(body), 0o644); err != nil {
-		return err
+	if s.Path != "" {
+		if err := os.MkdirAll(filepath.Dir(s.Path), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(s.Path, []byte(body), 0o644); err != nil {
+			return err
+		}
 	}
 	s.dirty = false
 	return nil
