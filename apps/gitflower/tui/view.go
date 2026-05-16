@@ -1,0 +1,372 @@
+// SPDX-FileCopyrightText: 2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+// SPDX-License-Identifier: EUPL-1.2
+
+// Rendering: View() + sidebar + main pane + commit/issue peek panes
+// + inline events + style palette. All the strings the terminal
+// actually paints live here.
+
+package tui
+
+import (
+	"fmt"
+	"os/exec"
+	"strconv"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+
+	"gitflower/review"
+)
+
+var (
+	// Add/Delete lines render with a coloured background. Two
+	// brightnesses: stronger when the hunk is still unread (so it
+	// pulls attention), softer once it's been read or skipped (so
+	// the eye glides past).
+	styleAddUnread = lipgloss.NewStyle().Background(lipgloss.Color("28")) // mid green
+	styleAddRead   = lipgloss.NewStyle().Background(lipgloss.Color("22")) // dim green
+	// Skipped lines: still green/red so the reviewer sees it's an
+	// add/delete, but with strikethrough so "I chose not to read this"
+	// reads clearly. If a skipped line ever gets viewed long enough to
+	// promote to Read, the read style wins (render checks read first).
+	styleAddSkip   = lipgloss.NewStyle().Background(lipgloss.Color("22")).Strikethrough(true)
+	styleDelUnread = lipgloss.NewStyle().Background(lipgloss.Color("88")) // mid red
+	styleDelRead   = lipgloss.NewStyle().Background(lipgloss.Color("52")) // dim red
+	styleDelSkip   = lipgloss.NewStyle().Background(lipgloss.Color("52")).Strikethrough(true)
+	// Back-compat aliases (pick the unread variants).
+	styleAdd      = styleAddUnread
+	styleDel      = styleDelUnread
+	styleCtx      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	styleHunk     = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
+	styleCursor   = lipgloss.NewStyle().Background(lipgloss.Color("237"))
+	cursorBg      = lipgloss.Color("54") // dark purple (xterm-256)
+	styleLineCur  = lipgloss.NewStyle().Background(cursorBg).Bold(true)
+	styleSel      = lipgloss.NewStyle().Background(lipgloss.Color("235"))
+	styleRead     = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	styleUnread   = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true)
+	styleMarkGood = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
+	styleMarkBad  = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
+	styleDim      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	styleStatus   = lipgloss.NewStyle().Reverse(true).Padding(0, 1)
+	styleTitle    = lipgloss.NewStyle().Bold(true)
+	styleFocused  = lipgloss.NewStyle().Bold(true).Underline(true)
+	styleSectHdr  = lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true)
+)
+
+// suppress unused-warning lints for back-compat aliases.
+var _ = []lipgloss.Style{styleAdd, styleDel, styleSel, styleUnread, styleCursor}
+
+func sidebarWidth(total int) int {
+	w := total / 4
+	if w < 24 {
+		w = 24
+	}
+	if w > 40 {
+		w = 40
+	}
+	return w
+}
+
+func (m *model) View() tea.View {
+	v := tea.NewView("")
+	v.AltScreen = true
+
+	if m.width == 0 {
+		v.Content = "loading…"
+		return v
+	}
+	if m.confirmQuit {
+		v.Content = m.viewConfirmQuit()
+		return v
+	}
+
+	var body string
+	switch {
+	case m.sidebarVisible():
+		body = lipgloss.JoinHorizontal(lipgloss.Top, m.viewSidebar(), m.viewMain())
+	case m.fullScreenSections():
+		// Narrow section mode: the section list IS the main view.
+		body = m.viewSidebar()
+	default:
+		body = m.viewMain()
+	}
+
+	left := fmt.Sprintf(" %s | verdict: %s ", m.modeName(), m.sess.Verdict)
+	right := " " + m.status + " "
+	if m.status == "" {
+		right = " " + helpFor(m) + " "
+	}
+	pad := m.width - lipgloss.Width(left) - lipgloss.Width(right)
+	if pad < 1 {
+		pad = 1
+	}
+	status := styleStatus.Render(left + strings.Repeat(" ", pad) + right)
+
+	v.Content = lipgloss.JoinVertical(lipgloss.Left, body, status)
+	return v
+}
+
+func (m *model) modeName() string {
+	switch m.mode {
+	case modeTree:
+		return "Section[" + m.sect.Label() + "]"
+	case modeDiff, modeFile:
+		return "Line[" + m.sect.Label() + "]"
+	}
+	return "?"
+}
+
+func helpFor(m *model) string {
+	if m.edit != editNone {
+		if m.edit == editIssue {
+			return "Tab switches title/body  •  Alt+Enter submits  •  Esc cancels"
+		}
+		if m.edit == editSummary {
+			return "Alt+Enter/Ctrl+S submits  •  Enter newline  •  Esc cancels"
+		}
+		return "Enter/Alt+Enter submits  •  Shift+Enter newline  •  Esc cancels"
+	}
+	switch m.mode {
+	case modeTree:
+		return "j/k item  Tab section  →/l/Enter open  i new issue  e edit issue  q quit"
+	case modeDiff:
+		return "j/k line  Space walk  c/!/Enter comment  a/? question  g/b mark  u unread  e edit  w wrap  >/< verdict  ←/h tree  s save  q quit"
+	case modeFile:
+		return "j/k line  Space walk  c/!/Enter comment  a/? question  e edit  w wrap  ←/h tree  q quit"
+	}
+	return ""
+}
+
+func (m *model) viewSidebar() string {
+	// In wide layout the sidebar gets its own column; in narrow
+	// (full-screen) section mode it takes the whole screen.
+	var w int
+	if m.fullScreenSections() {
+		w = m.width
+	} else {
+		w = sidebarWidth(m.width)
+	}
+
+	var lines []string
+	cursorRow := 0
+	for _, sec := range []section{sectionSources, sectionVerdicts, sectionIssues, sectionChanges, sectionCommits, sectionTree, sectionFileReview} {
+		items := m.sectionItems(sec)
+		hdr := fmt.Sprintf("%s (%d)", sec.Label(), len(items))
+		if m.mode == modeTree && m.sect == sec {
+			lines = append(lines, styleFocused.Render(hdr))
+		} else {
+			lines = append(lines, styleSectHdr.Render(hdr))
+		}
+		for i, item := range items {
+			marker := "  "
+			if m.mode == modeTree && m.sect == sec && i == m.sectIdx[sec] {
+				marker = "▶ "
+				cursorRow = len(lines)
+			}
+			line := marker + truncate(item, w-3)
+			if m.mode == modeTree && m.sect == sec && i == m.sectIdx[sec] {
+				line = styleCursor.Render(line)
+			}
+			lines = append(lines, line)
+		}
+		lines = append(lines, "")
+	}
+
+	// Window the rendered sidebar to fit the available height.
+	available := max(3, m.height-4)
+	if len(lines) > available {
+		top := cursorRow - available/3
+		if top < 0 {
+			top = 0
+		}
+		if top+available > len(lines) {
+			top = len(lines) - available
+		}
+		lines = lines[top : top+available]
+	}
+
+	return lipgloss.NewStyle().Width(w).Render(strings.Join(lines, "\n"))
+}
+
+// fileReadStats is kept as a shim; new code should call fileLineCounts.
+func (m *model) fileReadStats(idx int) (read, total int) {
+	return m.fileLineCounts(idx)
+}
+
+func (m *model) viewMain() string {
+	heading := m.mainHeading()
+	hdr := styleTitle.Render(heading)
+	if m.mode != modeTree {
+		hdr = styleFocused.Render(heading)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, hdr, m.viewport.View())
+}
+
+func (m *model) mainHeading() string {
+	switch m.mode {
+	case modeTree:
+		return m.sect.Label() + " (peek)"
+	case modeDiff:
+		f := m.currentFile()
+		h := ""
+		if hc := len(f.Hunks); hc > 0 {
+			h = fmt.Sprintf("   hunk %d/%d", m.hunkIdx+1, hc)
+		}
+		path := f.Path
+		if strings.HasPrefix(path, "commit:") {
+			rest := strings.TrimPrefix(path, "commit:")
+			if i := strings.Index(rest, ":"); i > 0 {
+				path = "commit " + rest[:i] + "  " + rest[i+1:]
+			}
+		}
+		return path + h
+	case modeFile:
+		return m.filePath + "  @" + truncate(m.sess.Scope.TipSHA, 12)
+	}
+	return ""
+}
+
+// ---------------------------------------------------------------------
+// rendering: commit + issue detail (tree peek)
+// ---------------------------------------------------------------------
+
+func renderCommitDetail(m *model) string {
+	idx := m.sectIdx[sectionCommits]
+	if idx >= len(m.sess.Scope.Commits) {
+		return styleDim.Render("(no commits)")
+	}
+	c := m.sess.Scope.Commits[idx]
+	out, _ := exec.Command("git", "show", "--no-color", c.SHA).Output()
+	return styleTitle.Render(c.Short+"  "+c.Subject) + "\n\n" + string(out)
+}
+
+func renderIssueDetail(m *model) string {
+	idx := m.sectIdx[sectionIssues]
+	issues := m.sess.Issues()
+	if idx >= len(issues) {
+		return styleDim.Render("(no issues — press `i` to add one)")
+	}
+	it := issues[idx]
+	var sb strings.Builder
+	sb.WriteString(styleTitle.Render(it.Title) + "\n")
+	if it.Author != "" {
+		sb.WriteString(styleDim.Render(it.Author+"  "+it.Date) + "\n")
+	}
+	sb.WriteString("\n" + it.Body + "\n")
+	return sb.String()
+}
+
+// ---------------------------------------------------------------------
+// rendering: inline events (comments, reactions) + snippets
+// ---------------------------------------------------------------------
+
+func renderInlineComment(c review.Comment) string {
+	icon := "💬"
+	if c.Kind == review.KindQuestion {
+		icon = "❓"
+	}
+	lines := strings.Split(strings.TrimRight(c.Text, "\n"), "\n")
+	var sb strings.Builder
+	for i, ln := range lines {
+		var prefix string
+		if i == 0 {
+			prefix = "    " + icon + " " + c.Author + ": "
+		} else {
+			prefix = "      "
+		}
+		sb.WriteString(styleDim.Render(prefix+ln) + "\n")
+	}
+	return sb.String()
+}
+
+// renderInlineEventsForLine renders all events anchored to a specific
+// new-side line of `path`. Comment/Question/Like/Dislike all show inline.
+func renderInlineEventsForLine(m *model, path string, newLine int) string {
+	var sb strings.Builder
+	for _, c := range m.sess.Comments() {
+		if eventAnchoredToLine(c.Anchor, path, newLine) {
+			sb.WriteString(renderInlineComment(c))
+		}
+	}
+	for _, a := range m.sess.MarkerAnchors() {
+		if !eventAnchoredToLine(a, path, newLine) {
+			continue
+		}
+		switch m.sess.Marker(a) {
+		case review.MarkerGood:
+			sb.WriteString(styleMarkGood.Render("    👍 "+m.sess.Reviewer) + "\n")
+		case review.MarkerBad:
+			sb.WriteString(styleMarkBad.Render("    👎 "+m.sess.Reviewer) + "\n")
+		}
+	}
+	return sb.String()
+}
+
+// renderInlineEventsForHunk renders events anchored to the whole hunk
+// (`path:newStart,newLines` exact match).
+func renderInlineEventsForHunk(m *model, path string, newStart, newLines int) string {
+	hunkAnchor := review.HunkAnchor(path, newStart, newLines)
+	var sb strings.Builder
+	for _, c := range m.sess.Comments() {
+		if c.Anchor == hunkAnchor {
+			sb.WriteString(renderInlineComment(c))
+		}
+	}
+	return sb.String()
+}
+
+// eventAnchoredToLine returns true if `a` is "path:N" or "path:start-N"
+// (a range ending at N).
+func eventAnchoredToLine(a review.Anchor, path string, newLine int) bool {
+	s := string(a)
+	prefix := path + ":"
+	if !strings.HasPrefix(s, prefix) {
+		return false
+	}
+	rest := s[len(prefix):]
+	if strings.Contains(rest, ",") {
+		return false
+	}
+	endStr := rest
+	if i := strings.Index(rest, "-"); i > 0 {
+		endStr = rest[i+1:]
+	}
+	n, err := strconv.Atoi(endStr)
+	if err != nil {
+		return false
+	}
+	return n == newLine
+}
+
+func renderHunkSnippet(h review.Hunk, ctx int) string {
+	var sb strings.Builder
+	sb.WriteString(h.Header + "\n")
+	limit := len(h.Lines)
+	if ctx > 0 && limit > ctx*4 {
+		limit = ctx * 4
+	}
+	for i := 0; i < limit; i++ {
+		ln := h.Lines[i]
+		switch ln.Kind {
+		case review.LineAdd:
+			sb.WriteString("+" + ln.Text + "\n")
+		case review.LineDelete:
+			sb.WriteString("-" + ln.Text + "\n")
+		default:
+			sb.WriteString(" " + ln.Text + "\n")
+		}
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+func markerStatus(m review.Marker) string {
+	switch m {
+	case review.MarkerGood:
+		return "marker → good"
+	case review.MarkerBad:
+		return "marker → bad"
+	default:
+		return "marker cleared"
+	}
+}
