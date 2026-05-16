@@ -66,8 +66,8 @@ func TestSpaceWalkOnLongDiffs(t *testing.T) {
 	stuck := 0
 	for i := 0; i < maxSteps; i++ {
 		// Fire pending read ticks deterministically.
-		for anchor := range m.pendingLines {
-			next, _ := m.Update(delayedReadMsg{line: anchor})
+		if m.viewReadScheduled {
+			next, _ := m.Update(viewReadMsg{gen: m.viewReadGen})
 			m = next.(*model)
 		}
 		if m.edit == editSummary {
@@ -298,8 +298,8 @@ func TestFastSpamDoesNotMarkUnseenHunksRead(t *testing.T) {
 	if !strings.HasSuffix(m.currentFile().Path, "b.txt") {
 		t.Fatalf("expected to land on b.txt, got %s", m.currentFile().Path)
 	}
-	for lk := range m.pendingLines {
-		next, _ := m.Update(delayedReadMsg{line: lk})
+	if m.viewReadScheduled {
+		next, _ := m.Update(viewReadMsg{gen: m.viewReadGen})
 		m = next.(*model)
 	}
 	if r, _ := m.fileLineCounts(0); r != 0 {

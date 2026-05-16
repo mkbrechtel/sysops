@@ -182,8 +182,8 @@ func TestSpaceWalkPagesThroughLongHunk(t *testing.T) {
 	// displayed and the read marker fires.
 	maxPresses := 20
 	for i := 0; i < maxPresses; i++ {
-		for anchor := range m.pendingLines {
-			next, _ := m.Update(delayedReadMsg{line: anchor})
+		if m.viewReadScheduled {
+			next, _ := m.Update(viewReadMsg{gen: m.viewReadGen})
 			m = next.(*model)
 		}
 		if r, total := m.fileLineCounts(0); r == total && total > 0 {
@@ -252,8 +252,8 @@ func TestModeTransitionMatrix(t *testing.T) {
 	prev := stateSig(m)
 	for i := 0; i < 6; i++ {
 		// Fire pending reads to keep walk moving.
-		for anchor := range m.pendingLines {
-			next, _ := m.Update(delayedReadMsg{line: anchor})
+		if m.viewReadScheduled {
+			next, _ := m.Update(viewReadMsg{gen: m.viewReadGen})
 			m = next.(*model)
 		}
 		m = key(t, m, ' ', " ")

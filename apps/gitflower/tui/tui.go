@@ -203,13 +203,19 @@ type model struct {
 	// been visible long enough to count as read.
 	lineRead    map[lineKey]bool
 	lineSkipped map[lineKey]bool
-	// pendingLines holds the lineKeys for which a tea.Tick has been
-	// queued. We need this so the tick-fire handler can confirm the
-	// line is still on screen before committing the read.
-	pendingLines map[lineKey]bool
+
+	// Per-view read tick. The user reads the lines currently in the
+	// viewport over a "lines_visible / readRate" window. Each time
+	// the view stabilises on a new set of unread lines we schedule
+	// one tick; when it fires (and the view hasn't changed since)
+	// all currently-visible unread lines flip to read.
+	viewReadGen       int      // monotonic generation; bumped on any view change
+	viewReadScheduled bool     // dedupe scheduling
+	lastViewFile      int      // last viewState seen by updateDisplayed
+	lastViewOffset    int
 
 	// Delayed read marking.
-	readRate float64 // lines/second; per-line delay = 1 / readRate
+	readRate float64 // lines/second
 
 	// Autosave: when true an autoSaveMsg tick is in flight.
 	saveScheduled bool
@@ -276,10 +282,10 @@ func newModel(sess *review.ReviewSession, root string, readRate float64) *model 
 		textarea:     ta,
 		title:        ti,
 		viewport:     vp,
-		readRate:     readRate,
-		lineRead:     map[lineKey]bool{},
-		lineSkipped:  map[lineKey]bool{},
-		pendingLines: map[lineKey]bool{},
+		readRate:    readRate,
+		lineRead:    map[lineKey]bool{},
+		lineSkipped: map[lineKey]bool{},
+		lastViewOffset: -1,
 	}
 	return m
 }
@@ -291,10 +297,11 @@ func newModel(sess *review.ReviewSession, root string, readRate float64) *model 
 func (m *model) Init() tea.Cmd { return nil }
 
 
-// delayedReadMsg fires `readDelay` after a reviewable diff line first
-// became visible. The handler verifies the line is still on screen
-// before marking it read.
-type delayedReadMsg struct{ line lineKey }
+// viewReadMsg fires after the reading-time window for the current
+// viewport elapses. The handler verifies the view hasn't changed since
+// the tick was scheduled (gen match) before marking every visible
+// unread reviewable line as read.
+type viewReadMsg struct{ gen int }
 
 // autoSaveMsg fires AutoSaveInterval after dirty state was detected.
 // Coalesces many rapid mutations into a single Save call.
@@ -312,21 +319,41 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize()
 		m.refreshViewport()
 		return m, m.drainCmds()
-	case delayedReadMsg:
-		// Delay elapsed for a reviewable line that was on screen when
-		// the tick was scheduled. Only commit the read if the line is
-		// still visible — otherwise the reviewer paged past too fast
-		// and we'd be rewarding a fast-scroll without actually reading.
-		// When we do commit, re-render so the colour shifts from
-		// bright (unread) to dim (read) immediately.
-		if m.pendingLines[msg.line] {
-			delete(m.pendingLines, msg.line)
-			if m.isLineVisible(msg.line) && !m.lineRead[msg.line] {
-				m.lineRead[msg.line] = true
-				m.scheduleAutoSave()
-				m.scheduleColourRefresh()
-			}
+	case viewReadMsg:
+		// Reading-time window elapsed. If the viewport hasn't changed
+		// since we scheduled this tick (gen match), flip every visible
+		// unread reviewable line to read.
+		m.viewReadScheduled = false
+		if msg.gen != m.viewReadGen {
+			return m, m.drainCmds()
 		}
+		marked := 0
+		top := m.viewport.YOffset()
+		bot := top + m.viewport.Height() - 1
+		for _, lr := range m.lineRanges {
+			if lr.isEOF {
+				continue
+			}
+			if lr.kind != review.LineAdd && lr.kind != review.LineDelete {
+				continue
+			}
+			if lr.botRow < top || lr.topRow > bot {
+				continue
+			}
+			lk := lineKey{fileIdx: m.fileIdx, hunkIdx: lr.hunkIdx, lineIdx: lr.lineIdx}
+			if m.lineRead[lk] || m.lineSkipped[lk] {
+				continue
+			}
+			m.lineRead[lk] = true
+			marked++
+		}
+		if marked > 0 {
+			m.scheduleAutoSave()
+			m.scheduleColourRefresh()
+		}
+		// Re-evaluate display in case there's still unread content on
+		// screen (e.g. tall hunks where some lines are clipped).
+		m.updateDisplayed()
 		return m, m.drainCmds()
 	case colourRefreshMsg:
 		m.colourRefreshScheduled = false
@@ -766,12 +793,13 @@ func (m *model) updateDiff(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshViewport()
 		}
 	case "u":
-		// Mark the current line unread: drop its read state so the
-		// walk visits it again, and cancel any pending tick.
+		// Mark the current line unread: drop its read state and bump
+		// the view generation so any pending read tick is invalidated.
 		lk := m.currentLineKey()
 		delete(m.lineRead, lk)
 		delete(m.lineSkipped, lk)
-		delete(m.pendingLines, lk)
+		m.viewReadGen++
+		m.viewReadScheduled = false
 		off := m.viewport.YOffset()
 		m.refreshViewport()
 		m.viewport.SetYOffset(off)
@@ -1851,36 +1879,25 @@ func (m *model) applyMarker(mk review.Marker) {
 // partial-read tracking
 // ---------------------------------------------------------------------
 
-// isLineVisible reports whether the rendered rows of `lk` overlap with
-// the current viewport — even partially. lineRanges only describe the
-// currently-rendered file, so a line from a different file is by
-// definition not visible.
-func (m *model) isLineVisible(lk lineKey) bool {
-	if lk.fileIdx != m.fileIdx {
-		return false
-	}
-	top := m.viewport.YOffset()
-	bot := top + m.viewport.Height() - 1
-	for _, lr := range m.lineRanges {
-		if lr.isEOF {
-			continue
-		}
-		if lr.hunkIdx != lk.hunkIdx || lr.lineIdx != lk.lineIdx {
-			continue
-		}
-		return lr.botRow >= top && lr.topRow <= bot
-	}
-	return false
-}
-
-// updateDisplayed schedules a per-line read tick for every reviewable
-// line currently inside the viewport that isn't already read, skipped,
-// or pending. The tick fires after a per-line reading time
-// (1/readRate) and only commits the read if the line is still visible.
+// updateDisplayed schedules one read tick for the current viewport.
+// The tick's delay is (visible unread reviewable lines) / readRate, so
+// 30 lines on screen at 10 l/s take 3 seconds before they all flip to
+// read. If the view changes (scroll, file flip, etc.) before the tick
+// fires, the generation counter mismatches and the old tick is a no-op.
 func (m *model) updateDisplayed() {
+	cur := struct{ file, off int }{m.fileIdx, m.viewport.YOffset()}
+	if cur.file != m.lastViewFile || cur.off != m.lastViewOffset {
+		m.viewReadGen++
+		m.viewReadScheduled = false
+		m.lastViewFile = cur.file
+		m.lastViewOffset = cur.off
+	}
+	if m.viewReadScheduled {
+		return
+	}
 	top := m.viewport.YOffset()
 	bot := top + m.viewport.Height() - 1
-	delay := m.perLineReadDelay()
+	count := 0
 	for _, lr := range m.lineRanges {
 		if lr.isEOF {
 			continue
@@ -1891,35 +1908,33 @@ func (m *model) updateDisplayed() {
 		if lr.botRow < top || lr.topRow > bot {
 			continue
 		}
-		// A reviewable line is fully on screen when both its top AND
-		// bottom rendered rows are in the viewport. For tall wrapped
-		// lines that won't fit, fall back to "any overlap" — otherwise
-		// long lines would never schedule a tick.
-		if lr.botRow-lr.topRow+1 <= m.viewport.Height() {
-			if lr.topRow < top || lr.botRow > bot {
-				continue
-			}
-		}
 		lk := lineKey{fileIdx: m.fileIdx, hunkIdx: lr.hunkIdx, lineIdx: lr.lineIdx}
-		if m.lineRead[lk] || m.lineSkipped[lk] || m.pendingLines[lk] {
+		if m.lineRead[lk] || m.lineSkipped[lk] {
 			continue
 		}
-		m.pendingLines[lk] = true
-		key := lk
-		m.queuedCmds = append(m.queuedCmds, tea.Tick(delay, func(time.Time) tea.Msg {
-			return delayedReadMsg{line: key}
-		}))
+		count++
 	}
+	if count == 0 {
+		return
+	}
+	delay := m.viewReadDelay(count)
+	m.viewReadScheduled = true
+	gen := m.viewReadGen
+	m.queuedCmds = append(m.queuedCmds, tea.Tick(delay, func(time.Time) tea.Msg {
+		return viewReadMsg{gen: gen}
+	}))
 }
 
-// perLineReadDelay returns the reading time budget for a single
-// reviewable line — the inverse of readRate, floored at minReadDelay.
-func (m *model) perLineReadDelay() time.Duration {
+// viewReadDelay = lines / readRate, clamped to the minimum tick.
+func (m *model) viewReadDelay(lines int) time.Duration {
+	if lines < 1 {
+		lines = 1
+	}
 	rate := m.readRate
 	if rate <= 0 {
 		rate = DefaultReadRate
 	}
-	d := time.Duration(float64(time.Second) / rate)
+	d := time.Duration(float64(time.Second) * float64(lines) / rate)
 	if d < minReadDelay {
 		d = minReadDelay
 	}

@@ -52,8 +52,8 @@ func TestSpaceWalkOnThisRepo(t *testing.T) {
 	const maxSteps = 5000
 	stuck := 0
 	for i := 0; i < maxSteps; i++ {
-		for anchor := range m.pendingLines {
-			next, _ := m.Update(delayedReadMsg{line: anchor})
+		if m.viewReadScheduled {
+			next, _ := m.Update(viewReadMsg{gen: m.viewReadGen})
 			m = next.(*model)
 		}
 		if m.edit == editSummary {
