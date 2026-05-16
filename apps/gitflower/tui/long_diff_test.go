@@ -124,6 +124,59 @@ func TestSpaceWalkOnLongDiffs(t *testing.T) {
 	}
 }
 
+// TestSpaceSpamPreservesScrollProgress: page partway into a long
+// unread hunk with PgDn, then spam Space. The viewport must stay
+// where the reader left it, and the displayed-row accumulator must
+// not be cleared — otherwise spamming Space would reset PgDn
+// progress and effectively prevent the read tick from firing.
+func TestSpaceSpamPreservesScrollProgress(t *testing.T) {
+	scope := review.Scope{
+		Branch:  "feature",
+		Base:    "main",
+		TipSHA:  "abc1234567890",
+		BaseSHA: "0000111122223333",
+		Diff:    "main..feature",
+		Title:   "spam",
+		Commits: []review.Commit{{SHA: "abc1234567890", Short: "abc1234", Subject: "spam"}},
+		Files:   []string{"big.txt"},
+		RawDiff: buildAddPatch("big.txt", 200),
+		FilePatches: map[string]string{
+			"big.txt": buildAddPatch("big.txt", 200),
+		},
+		CommitPatches: map[string]string{"abc1234567890": "From abc1234\n"},
+	}
+	tmp := t.TempDir()
+	sess := review.New(scope, "tester@example.com", filepath.Join(tmp, "spam.review"))
+	m := newModel(sess, tmp, 1000.0)
+	m = step(t, m, tea.WindowSizeMsg{Width: 100, Height: 20})
+
+	// Drill in, then PgDn a few times so we're mid-way through the hunk.
+	m = key(t, m, ' ', " ")
+	for i := 0; i < 5; i++ {
+		m = step(t, m, tea.KeyPressMsg{Code: tea.KeyPgDown})
+	}
+	progress := m.viewport.YOffset()
+	if progress == 0 {
+		t.Fatalf("PgDn made no progress")
+	}
+	anchor := review.HunkAnchor("big.txt", 1, 200)
+	displayedBefore := len(m.displayed[anchor])
+
+	// Now spam Space. Each one should be a no-op since we're already
+	// on the next unread hunk.
+	for i := 0; i < 20; i++ {
+		m = key(t, m, ' ', " ")
+	}
+
+	if got := m.viewport.YOffset(); got != progress {
+		t.Errorf("Space spam shifted viewport: was %d, now %d", progress, got)
+	}
+	if got := len(m.displayed[anchor]); got < displayedBefore {
+		t.Errorf("Space spam shrank displayed accumulator: was %d, now %d",
+			displayedBefore, got)
+	}
+}
+
 // TestSpaceCannotAdvancePastUnread asserts the locked-in contract:
 // Space inside an unread hunk only pages within it; it never spills
 // onto the next hunk or EOF until the read tick fires. The reviewer

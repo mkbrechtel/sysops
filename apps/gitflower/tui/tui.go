@@ -1052,12 +1052,17 @@ func (m *model) spaceWalkInFile() {
 		return
 	}
 
-	// Always jump to "5 rendered rows before the first reviewable line
-	// of the next unread hunk". If that's the position we already
-	// occupy (the unread hunk is the one we're on), the jump lands on
-	// the same row → effectively a no-op. The reader uses PgDn to
-	// actually page through the hunk, or Alt+Space to skip it; Space
-	// is purely a navigation key.
+	// Already parked on the next unread hunk: leave cursor and
+	// viewport completely alone. Re-jumping would reset PgDn progress
+	// and re-render, which both wastes work and (worse) could let the
+	// reader perceive Space as "messing with the read timer". The
+	// reader uses PgDn to page through the unread; Alt+Space to skip.
+	if m.hunkIdx == nextHunkIdx {
+		return
+	}
+
+	// Otherwise jump: cursor on the first reviewable line of the
+	// unread hunk, viewport backed up by `pageOverlap` rows.
 	h := &f.Hunks[nextHunkIdx]
 	m.hunkIdx = nextHunkIdx
 	m.lineCursor = m.firstNonDelete(h, 0, +1)
