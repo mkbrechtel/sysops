@@ -315,17 +315,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshViewport()
 		return m, m.drainCmds()
 	case delayedReadMsg:
-		// Delay elapsed for a previously-fully-displayed hunk. Before we
-		// commit the read marker, verify the hunk is STILL at least
-		// partially in the viewport — otherwise the reviewer paged past
-		// too quickly and we'd be rewarding a "spam Space through
-		// everything" workflow with bogus read state. If they moved on,
-		// clear the accumulator so they have to re-display the hunk
-		// before another tick can fire.
+		// Delay elapsed for a previously-fully-displayed hunk. Before
+		// we commit the read marker, verify the hunk is STILL at least
+		// partially in the viewport — otherwise the reviewer paged
+		// past too quickly. If they moved on, clear the accumulator so
+		// they have to re-display the hunk before another tick can
+		// fire. When we DO mark read, re-render so the diff colours
+		// update from "unread bright" to "read dim" immediately.
 		if m.pendingReads[msg.anchor] {
 			if m.isHunkPartiallyVisible(msg.anchor) {
 				m.sess.MarkRead(msg.anchor)
 				m.scheduleAutoSave()
+				off := m.viewport.YOffset()
+				m.refreshViewport()
+				m.viewport.SetYOffset(off)
+				m.updateDisplayed()
 			} else {
 				delete(m.displayed, msg.anchor)
 			}
@@ -925,6 +929,52 @@ func (m *model) cursorNewLine(h *review.Hunk) int {
 	return 0
 }
 
+// pageDownInHunk scrolls forward, but never past the bottom row of
+// hunk `hi`. Used by spaceWalkInFile so Space-within-a-multi-page-
+// unread hunk advances through it without leaking onto the next
+// hunk / EOF marker before the current one is marked read.
+func (m *model) pageDownInHunk(hi int) {
+	if hi < 0 || hi >= len(m.hunkRanges) {
+		return
+	}
+	hr := m.hunkRanges[hi]
+	top := m.viewport.YOffset()
+	height := m.viewport.Height()
+	bot := top + height - 1
+	// Already showing the hunk's last row — no more to page within.
+	// Stay put; the read tick will eventually fire (or the user can
+	// Alt+Space to skip).
+	if hr.botRow <= bot {
+		return
+	}
+	step := height - pageOverlap
+	if step < 1 {
+		step = 1
+	}
+	newTop := top + step
+	// Don't scroll so far that the hunk's last row leaves the view —
+	// otherwise we'd be advancing past the hunk before it's marked.
+	maxTop := hr.botRow - height + 1
+	if newTop > maxTop {
+		newTop = maxTop
+	}
+	if newTop < 0 {
+		newTop = 0
+	}
+	if newTop == top {
+		return
+	}
+	m.viewport.SetYOffset(newTop)
+	// Re-render so the line cursor highlight (if any) follows the new
+	// view. We deliberately do NOT call snapCursorIntoView here: snap
+	// would clamp to EOF for an all-delete hunk (no reviewable lines)
+	// and the outer spaceWalk would then think we'd left the hunk
+	// before its read tick had a chance to fire.
+	m.refreshViewport()
+	m.viewport.SetYOffset(newTop)
+	m.updateDisplayed()
+}
+
 // skipWalk marks the current unread hunk as intentionally skipped and
 // then jumps to the next unread one (or EOF / next file, just like
 // spaceWalk). Bound to Alt+Space — for content the reviewer doesn't
@@ -1049,12 +1099,13 @@ func (m *model) spaceWalkInFile() {
 	}
 
 	// If the next unread hunk is the one we're already parked on,
-	// Space keeps advancing through it via pageDown — otherwise a
-	// reviewer pressing Space repeatedly on a multi-page unread hunk
-	// would feel stuck. We only do the "jump to 5 before first line"
-	// when we're moving to a NEW unread anchor.
+	// Space pages WITHIN that hunk — it never advances past it. The
+	// reader has to either let the read tick fire (which means
+	// actually looking at the content) or press Alt+Space to skip.
+	// That's what locks the "you must read this before moving on"
+	// contract.
 	if m.hunkIdx == nextHunkIdx {
-		m.pageDown()
+		m.pageDownInHunk(nextHunkIdx)
 		return
 	}
 

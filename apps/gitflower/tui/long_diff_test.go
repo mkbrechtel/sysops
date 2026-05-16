@@ -186,6 +186,57 @@ func TestSpaceOnlyWalkOnLongDiffs(t *testing.T) {
 	}
 }
 
+// TestSpaceCannotAdvancePastUnread asserts the locked-in contract:
+// Space inside an unread hunk only pages within it; it never spills
+// onto the next hunk or EOF until the read tick fires. The reviewer
+// must keep the hunk on screen for the full reading-time window, or
+// Alt+Space to skip.
+func TestSpaceCannotAdvancePastUnread(t *testing.T) {
+	// Two small files so we can detect "advanced past first" easily.
+	scope := review.Scope{
+		Branch:  "feature",
+		Base:    "main",
+		TipSHA:  "abc1234567890",
+		BaseSHA: "0000111122223333",
+		Diff:    "main..feature",
+		Title:   "lock",
+		Commits: []review.Commit{{SHA: "abc1234567890", Short: "abc1234", Subject: "lock"}},
+		Files:   []string{"a.txt", "b.txt"},
+		RawDiff: buildAddPatch("a.txt", 100) + "\n" + buildAddPatch("b.txt", 5),
+		FilePatches: map[string]string{
+			"a.txt": buildAddPatch("a.txt", 100),
+			"b.txt": buildAddPatch("b.txt", 5),
+		},
+		CommitPatches: map[string]string{"abc1234567890": "From abc1234\n"},
+	}
+	tmp := t.TempDir()
+	sess := review.New(scope, "tester@example.com", filepath.Join(tmp, "lock.review"))
+	// Effectively infinite reading time: ticks never fire on their own.
+	m := newModel(sess, tmp, 0.001)
+	m = step(t, m, tea.WindowSizeMsg{Width: 100, Height: 20})
+
+	// Drill in.
+	m = key(t, m, ' ', " ")
+	anchorA := review.HunkAnchor("a.txt", 1, 100)
+	if m.fileIdx != 0 {
+		t.Fatalf("expected fileIdx 0, got %d", m.fileIdx)
+	}
+	// Spam Space — without firing the read tick, we must never leave
+	// a.txt and never reach atEOF.
+	for i := 0; i < 100; i++ {
+		m = key(t, m, ' ', " ")
+		if m.fileIdx != 0 {
+			t.Fatalf("Space #%d leaked to file %d before read tick fired", i, m.fileIdx)
+		}
+		if m.atEOF {
+			t.Fatalf("Space #%d reached EOF before read tick fired", i)
+		}
+		if m.sess.IsRead(anchorA) {
+			t.Fatalf("Space #%d marked the hunk read without a tick firing", i)
+		}
+	}
+}
+
 // TestAltSpaceSkipsAndAdvances verifies that Alt+Space marks the
 // current unread hunk as skipped and jumps to the next one, and that
 // a skipped hunk's render uses the muted-olive add style (not the
