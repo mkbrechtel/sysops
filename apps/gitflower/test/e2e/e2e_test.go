@@ -131,8 +131,9 @@ func TestReviewViaPTY(t *testing.T) {
 		{keys: "Implementation is sound. Ready to merge.", wait: defaultStepGap},
 		{keys: "\x1b\r", wait: defaultStepGap},                     // Alt+Enter submit
 
-		{keys: "s", wait: defaultStepGap},                          // save
-		{keys: "q", wait: 100 * time.Millisecond},                  // quit
+		// `s` is now "skip viewport" in line mode (saving is handled
+		// by the global autosave + the q-flushes-dirty path).
+		{keys: "q", wait: 100 * time.Millisecond}, // quit (flushes dirty state)
 	}...)
 	for i, s := range steps {
 		if s.keys != "" {

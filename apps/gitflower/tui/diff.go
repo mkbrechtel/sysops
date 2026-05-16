@@ -22,6 +22,13 @@ func (m *model) updateDiff(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+	// In line mode, `s` means "skip the visible viewport", not the
+	// global "save" (which is autosaved anyway). Pre-empt before
+	// the global handler.
+	if key.String() == "s" || key.String() == "alt+enter" {
+		m.skipWalk()
+		return m, nil
+	}
 	if cmd, done := m.handleGlobal(key.String()); done {
 		return m, cmd
 	}

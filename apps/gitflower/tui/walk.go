@@ -26,24 +26,38 @@ const pageOverlap = 5
 // Used by tests to introspect state transitions.
 var debugSpaceWalk func(stage string, m *model)
 
-// skipWalk marks every unread reviewable line in the current file
-// from the cursor forward (within the current hunk) as Skipped, then
-// jumps to the next unread line / file. Alt+Space — for templates and
-// other content the reviewer wants to acknowledge-and-skip in bulk.
+// skipWalk marks every reviewable line currently in the viewport
+// (that isn't already read) as Skipped, then jumps to the next
+// unread line / file. Bound to `s` and Alt+Enter in line mode, and
+// Alt+Space everywhere — for templates / generated content the
+// reviewer wants to acknowledge-and-skip a page at a time. To skip
+// a whole file in one go, use `s` on the file's row in the Changes
+// or Tree sidebar instead (see skipFromSidebar).
 func (m *model) skipWalk() {
 	if !m.atEOF && m.mode == modeDiff {
-		if f := m.currentFile(); f != nil && m.hunkIdx >= 0 && m.hunkIdx < len(f.Hunks) {
-			h := &f.Hunks[m.hunkIdx]
-			for li := m.lineCursor; li < len(h.Lines); li++ {
-				if h.Lines[li].Kind != review.LineAdd && h.Lines[li].Kind != review.LineDelete {
-					continue
-				}
-				lk := lineKey{fileIdx: m.fileIdx, hunkIdx: m.hunkIdx, lineIdx: li}
-				if m.lineRead[lk] || m.lineSkipped[lk] {
-					continue
-				}
-				m.lineSkipped[lk] = true
+		top := m.viewport.YOffset()
+		bot := top + m.viewport.Height() - 1
+		skipped := 0
+		for _, lr := range m.lineRanges {
+			if lr.isEOF {
+				continue
 			}
+			if lr.kind != review.LineAdd && lr.kind != review.LineDelete {
+				continue
+			}
+			// Only count lines whose rendered span overlaps the
+			// viewport — that's "the page the user is looking at".
+			if lr.botRow < top || lr.topRow > bot {
+				continue
+			}
+			lk := lineKey{fileIdx: m.fileIdx, hunkIdx: lr.hunkIdx, lineIdx: lr.lineIdx}
+			if m.lineRead[lk] || m.lineSkipped[lk] {
+				continue
+			}
+			m.lineSkipped[lk] = true
+			skipped++
+		}
+		if skipped > 0 {
 			m.scheduleAutoSave()
 		}
 	}

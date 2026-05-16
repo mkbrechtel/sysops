@@ -22,6 +22,12 @@ func (m *model) updateFile(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+	// In file-review mode, `s` / Alt+Enter mean "skip the visible
+	// viewport" (same as in modeDiff). Pre-empt the global save.
+	if key.String() == "s" || key.String() == "alt+enter" {
+		m.skipWalk()
+		return m, nil
+	}
 	if cmd, done := m.handleGlobal(key.String()); done {
 		return m, cmd
 	}
