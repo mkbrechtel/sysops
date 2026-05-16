@@ -127,6 +127,20 @@ type hunkRange struct {
 	topRow, botRow int
 }
 
+// lineRange records the rendered-row span of a single reviewable element
+// in the current viewport: either a non-delete diff line, or the synthetic
+// "<end of file>" marker that follows the last hunk. We need this for
+// wrap-aware cursor placement — with hanging-indent soft-wrap, a single
+// logical hunk line can span multiple rendered rows, so we can't infer
+// the line index from a row index by simple arithmetic.
+type lineRange struct {
+	hunkIdx        int  // -1 for the EOF marker
+	lineIdx        int  // index into hunk.Lines; ignored when hunkIdx == -1
+	topRow, botRow int
+	isEOF          bool
+	kind           review.LineKind // only meaningful when !isEOF
+}
+
 type model struct {
 	sess *review.ReviewSession
 	root string
@@ -166,6 +180,8 @@ type model struct {
 	viewport viewport.Model
 
 	hunkRanges []hunkRange
+	lineRanges []lineRange
+	atEOF      bool // cursor is on the synthetic <end of file> marker
 	displayed  map[review.Anchor]map[int]bool
 
 	// Delayed read marking.
@@ -535,6 +551,7 @@ func (m *model) onTreeSelectionChanged() {
 	case sectionChanges:
 		m.fileIdx = m.sectIdx[m.sect]
 		m.hunkIdx = 0
+		m.atEOF = false
 	case sectionFileReview:
 		idx := m.sectIdx[m.sect]
 		frs := m.sess.FileReviews()
@@ -563,6 +580,7 @@ func (m *model) openSelectedItem() {
 		m.fileIdx = m.sectIdx[m.sect]
 		m.hunkIdx = 0
 		m.lineCursor = 0
+		m.atEOF = false
 		if h := m.currentHunk(); h != nil {
 			m.lineCursor = m.firstNonDelete(h, 0, +1)
 		}
@@ -693,6 +711,9 @@ func (m *model) updateDiff(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 
 func (m *model) lineNext() {
+	if m.atEOF {
+		return // already at the end of the file
+	}
 	h := m.currentHunk()
 	if h == nil {
 		return
@@ -703,16 +724,32 @@ func (m *model) lineNext() {
 		m.refreshViewport()
 		return
 	}
-	// At end of hunk: advance to first line of next hunk.
+	// At end of hunk: advance to first line of next hunk, or step onto
+	// the EOF marker after the last hunk.
 	f := m.currentFile()
 	if m.hunkIdx+1 < len(f.Hunks) {
 		m.hunkIdx++
 		m.lineCursor = m.firstNonDelete(&f.Hunks[m.hunkIdx], 0, +1)
 		m.refreshViewport()
+		return
 	}
+	m.atEOF = true
+	m.refreshViewport()
 }
 
 func (m *model) linePrev() {
+	if m.atEOF {
+		// Step back from EOF onto the last reviewable line of the file.
+		f := m.currentFile()
+		if last := len(f.Hunks) - 1; last >= 0 {
+			m.hunkIdx = last
+			lh := &f.Hunks[last]
+			m.lineCursor = m.firstNonDelete(lh, len(lh.Lines)-1, -1)
+		}
+		m.atEOF = false
+		m.refreshViewport()
+		return
+	}
 	h := m.currentHunk()
 	if h == nil {
 		return
@@ -849,14 +886,14 @@ func (m *model) spaceWalk() {
 			m.fileIdx = m.sectIdx[m.sect]
 		}
 		m.hunkIdx = -1 // virtual "before first hunk"
+		m.atEOF = false
 		m.mode = modeDiff
 	}
 
-	// (2) If the current hunk is unread, decide between scrolling within
-	// it (multi-page) or staying still (single-page, waiting for the
-	// read timer). If it's already read, fall through to seek the next
-	// unread one.
-	if m.hunkIdx >= 0 {
+	// (2) If we're on a non-EOF unread hunk, either page within it or
+	// stay put waiting for the read tick. If it's read, fall through to
+	// seek the next unread one in this file.
+	if !m.atEOF && m.hunkIdx >= 0 {
 		h := m.currentHunk()
 		if h != nil {
 			a := review.HunkAnchor(m.currentFile().Path, h.NewStart, h.NewLines)
@@ -868,13 +905,21 @@ func (m *model) spaceWalk() {
 					top := m.viewport.YOffset()
 					bot := top + m.viewport.Height() - 1
 					if r.botRow > bot {
+						// Page down so the 5th-from-bottom row of the
+						// current view becomes the new top — that gives
+						// the reader 4 lines of overlap context. The
+						// cursor lands on that new top line (the most
+						// recent thing they were reading), making it
+						// visually obvious where we just jumped to.
 						step := m.viewport.Height() - 5
 						if step < 1 {
 							step = 1
 						}
 						m.viewport.SetYOffset(top + step)
-						m.updateDisplayed()
 						m.snapCursorIntoView()
+						m.refreshViewport()
+						m.viewport.SetYOffset(top + step)
+						m.updateDisplayed()
 						return
 					}
 					break
@@ -888,34 +933,43 @@ func (m *model) spaceWalk() {
 
 	// (3) Next unread strictly after the cursor in current file.
 	f := m.currentFile()
-	for hi := m.hunkIdx + 1; hi < len(f.Hunks); hi++ {
-		h := &f.Hunks[hi]
-		a := review.HunkAnchor(f.Path, h.NewStart, h.NewLines)
-		if m.sess.IsRead(a) {
-			continue
-		}
-		m.hunkIdx = hi
-		m.lineCursor = m.firstNonDelete(h, 0, +1)
-		m.refreshViewportWithContext(5)
-		return
-	}
-
-	// (4) No unread left in this file: park on the last reviewable line.
-	if last := len(f.Hunks) - 1; last >= 0 {
-		lastH := &f.Hunks[last]
-		lastLine := m.firstNonDelete(lastH, len(lastH.Lines)-1, -1)
-		if m.hunkIdx < last || m.lineCursor < lastLine {
-			m.hunkIdx = last
-			m.lineCursor = lastLine
+	if !m.atEOF {
+		for hi := m.hunkIdx + 1; hi < len(f.Hunks); hi++ {
+			h := &f.Hunks[hi]
+			a := review.HunkAnchor(f.Path, h.NewStart, h.NewLines)
+			if m.sess.IsRead(a) {
+				continue
+			}
+			m.hunkIdx = hi
+			m.lineCursor = m.firstNonDelete(h, 0, +1)
 			m.refreshViewportWithContext(5)
 			return
 		}
 	}
 
-	// (5) On the last line and no unreads here; advance to next file.
+	// (4) No unread left in this file: land on the synthetic <end of
+	// file> marker so the reader gets an unambiguous "you're done here"
+	// signal. If we're already on the marker, fall through to advance.
+	if !m.atEOF {
+		m.atEOF = true
+		m.refreshViewport()
+		// Scroll so the EOF marker sits comfortably above the bottom.
+		if eof := m.eofRange(); eof != nil {
+			target := eof.topRow - (m.viewport.Height() - 5)
+			if target < 0 {
+				target = 0
+			}
+			m.viewport.SetYOffset(target)
+			m.updateDisplayed()
+		}
+		return
+	}
+
+	// (5) On the EOF marker; advance to the next file.
 	if m.fileIdx+1 < len(m.files) {
 		m.fileIdx++
 		m.hunkIdx = -1
+		m.atEOF = false
 		nf := m.currentFile()
 		for hi := 0; hi < len(nf.Hunks); hi++ {
 			h := &nf.Hunks[hi]
@@ -927,16 +981,9 @@ func (m *model) spaceWalk() {
 				return
 			}
 		}
-		// New file is also all-read; land on its last line.
-		if last := len(nf.Hunks) - 1; last >= 0 {
-			m.hunkIdx = last
-			lastH := &nf.Hunks[last]
-			m.lineCursor = m.firstNonDelete(lastH, len(lastH.Lines)-1, -1)
-		} else {
-			m.hunkIdx = 0
-			m.lineCursor = 0
-		}
-		m.refreshViewportWithContext(5)
+		// New file is fully read already; jump straight to its EOF.
+		m.atEOF = true
+		m.refreshViewport()
 		return
 	}
 
@@ -1040,36 +1087,51 @@ func (m *model) recordVisitedLine() {
 }
 
 func (m *model) snapCursorIntoView() {
-	if len(m.hunkRanges) == 0 {
+	if len(m.lineRanges) == 0 {
 		return
 	}
 	top := m.viewport.YOffset()
-	for i, r := range m.hunkRanges {
-		if r.botRow >= top {
-			m.hunkIdx = i
-			if h := m.currentHunk(); h != nil {
-				// Pick the first reviewable line at or below the viewport
-				// top, not always line 0 of the hunk — otherwise paging a
-				// multi-page hunk would re-park the cursor off-screen above
-				// the visible area.
-				offset := top - r.topRow - 1 // -1 for the @@ header row
-				if offset < 0 {
-					offset = 0
-				}
-				if offset > len(h.Lines)-1 {
-					offset = len(h.Lines) - 1
-				}
-				m.lineCursor = m.firstNonDelete(h, offset, +1)
-			}
-			return
+	// Pick the first reviewable element whose top is at or below the
+	// viewport top. lineRanges already accounts for wrap and inline
+	// comments, so this works regardless of how many rendered rows each
+	// logical line spans.
+	for _, lr := range m.lineRanges {
+		if lr.botRow < top {
+			continue
+		}
+		if !lr.isEOF && lr.kind == review.LineDelete {
+			continue
+		}
+		m.placeCursor(lr)
+		return
+	}
+	// Scrolled past everything; clamp to EOF (last range).
+	m.placeCursor(m.lineRanges[len(m.lineRanges)-1])
+}
+
+// eofRange returns the lineRange of the synthetic EOF marker for the
+// currently-rendered file, or nil if there isn't one in the current
+// content (e.g. tree-mode peek of a non-file section).
+func (m *model) eofRange() *lineRange {
+	for i := range m.lineRanges {
+		if m.lineRanges[i].isEOF {
+			return &m.lineRanges[i]
 		}
 	}
-	// Scrolled past every hunk; clamp to the last.
-	last := len(m.hunkRanges) - 1
-	m.hunkIdx = last
-	if h := m.currentHunk(); h != nil {
-		m.lineCursor = m.firstNonDelete(h, 0, +1)
+	return nil
+}
+
+// placeCursor moves the diff-mode cursor to the line described by lr,
+// switching to / out of the EOF state as needed. Callers are responsible
+// for re-rendering and any viewport scroll they want.
+func (m *model) placeCursor(lr lineRange) {
+	if lr.isEOF {
+		m.atEOF = true
+		return
 	}
+	m.atEOF = false
+	m.hunkIdx = lr.hunkIdx
+	m.lineCursor = lr.lineIdx
 }
 
 // hunkAtTopOfView places the cursor on the first reviewable line of whichever
@@ -1508,17 +1570,18 @@ func (m *model) updateDisplayed() {
 func (m *model) refreshViewport() {
 	var body string
 	var ranges []hunkRange
+	var lines []lineRange
 	var cursorRow int
 	switch m.mode {
 	case modeDiff:
-		body, ranges, cursorRow = renderFileDiff(m)
+		body, ranges, lines, cursorRow = renderFileDiff(m)
 	case modeFile:
 		body, cursorRow = renderFileView(m)
 	case modeTree:
 		// Peek: render whatever the selection suggests.
 		switch m.sect {
 		case sectionChanges:
-			body, ranges, cursorRow = renderFileDiff(m)
+			body, ranges, lines, cursorRow = renderFileDiff(m)
 		case sectionFileReview:
 			body, cursorRow = renderFileView(m)
 		case sectionCommits:
@@ -1528,6 +1591,7 @@ func (m *model) refreshViewport() {
 		}
 	}
 	m.hunkRanges = ranges
+	m.lineRanges = lines
 	m.viewport.SetContent(body)
 	target := cursorRow - m.viewport.Height()/3
 	if target < 0 {
@@ -1758,7 +1822,7 @@ func wrapDiffText(s string, width int) []string {
 	return strings.Split(wrapped, "\n")
 }
 
-func renderFileDiff(m *model) (body string, ranges []hunkRange, cursorRow int) {
+func renderFileDiff(m *model) (body string, ranges []hunkRange, lines []lineRange, cursorRow int) {
 	var sb strings.Builder
 	f := m.currentFile()
 	editing := m.edit == editComment || m.edit == editQuestion
@@ -1848,7 +1912,8 @@ func renderFileDiff(m *model) (body string, ranges []hunkRange, cursorRow int) {
 				sign = "  "
 				styleLn = styleCtx
 			}
-			isCursor := hi == m.hunkIdx && li == m.lineCursor
+			isCursor := !m.atEOF && hi == m.hunkIdx && li == m.lineCursor
+			lineTop := row
 			parts := wrapDiffText(ln.Text, wrapW)
 			// When the cursor is on this line, paint every piece with a
 			// matching background so the whole row reads as one highlight.
@@ -1885,6 +1950,9 @@ func renderFileDiff(m *model) (body string, ranges []hunkRange, cursorRow int) {
 				sb.WriteString(line + "\n")
 				row++
 			}
+			lines = append(lines, lineRange{
+				hunkIdx: hi, lineIdx: li, topRow: lineTop, botRow: row - 1, kind: ln.Kind,
+			})
 
 			if li == editorLineIdx {
 				rs := renderInlineEditor(m)
@@ -1918,8 +1986,29 @@ func renderFileDiff(m *model) (body string, ranges []hunkRange, cursorRow int) {
 	}
 	if len(f.Hunks) == 0 {
 		sb.WriteString(styleDim.Render("(no hunks)") + "\n")
+		row++
 	}
-	return sb.String(), ranges, cursorRow
+
+	// Synthetic "<end of file>" marker — gives the user an unambiguous
+	// landing spot when the walk hits the end of a file.
+	eofTop := row
+	eofText := "<end of file>"
+	eofStyle := styleDim
+	if m.atEOF {
+		eofStyle = eofStyle.Background(cursorBg).Bold(true)
+		cursorRow = row
+	}
+	eofLine := strings.Repeat(" ", gutterW) + eofStyle.Render(eofText)
+	if m.atEOF {
+		if pad := vpW - lipgloss.Width(eofLine); pad > 0 {
+			eofLine += eofStyle.Render(strings.Repeat(" ", pad))
+		}
+	}
+	sb.WriteString(eofLine + "\n")
+	row++
+	lines = append(lines, lineRange{hunkIdx: -1, topRow: eofTop, botRow: row - 1, isEOF: true})
+
+	return sb.String(), ranges, lines, cursorRow
 }
 
 func anchorBelongsToHunk(a review.Anchor, path string, h *review.Hunk) bool {

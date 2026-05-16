@@ -281,7 +281,7 @@ func assertCursorVisible(t *testing.T, m *model) {
 	}
 	// Re-render and grep for styleLineCur (background 236, bold). For
 	// modeDiff we look for `+ ` or `  ` styled with bold + bg.
-	body, ranges, cursorRow := renderFileDiff(m)
+	body, ranges, _, cursorRow := renderFileDiff(m)
 	_ = body
 	if m.mode == modeFile {
 		return
