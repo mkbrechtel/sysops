@@ -12,6 +12,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"gitflower/review"
 )
@@ -269,6 +270,22 @@ func TestModeTransitionMatrix(t *testing.T) {
 			t.Logf("Space at step %d didn't change state: %s", i, cur)
 		}
 		prev = cur
+	}
+}
+
+// TestTabbedLineWraps verifies that a long line containing tabs gets
+// hard-wrapped with our hanging indent rather than slipping past the
+// wrap width because Hardwrap counts tabs as width 1. The continuation
+// rows should start with leading spaces, not text.
+func TestTabbedLineWraps(t *testing.T) {
+	parts := wrapDiffText("\t\tfunc reallyLongIdentifierName(arg1 string, arg2 string, arg3 string, arg4 string) error", 40)
+	if len(parts) < 2 {
+		t.Fatalf("expected multi-part wrap, got %d: %v", len(parts), parts)
+	}
+	for i, p := range parts {
+		if visW := lipgloss.Width(p); visW > 40 {
+			t.Errorf("part %d wider than 40: width=%d %q", i, visW, p)
+		}
 	}
 }
 

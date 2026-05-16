@@ -1867,15 +1867,44 @@ func (m *model) viewConfirmQuit() string {
 // ---------------------------------------------------------------------
 
 // wrapDiffText hard-wraps a single diff line's payload (no sign, no gutter)
-// at `width`. ansi.Hardwrap preserves any escape codes embedded in `s`. When
-// soft-wrap would shorten the line to nothing useful, we fall back to one
-// long line and rely on the viewport's own wrap.
+// at `width`. ansi.Hardwrap preserves any escape codes embedded in `s`.
+// Tabs are expanded to spaces first because Hardwrap counts a tab as
+// width 1 while the terminal expands it to the next 8-column stop —
+// without expansion, lines with tabs slip past `width`, the terminal
+// re-wraps them itself, and our hanging-indent never gets applied.
 func wrapDiffText(s string, width int) []string {
 	if width < 1 {
 		return []string{s}
 	}
+	s = expandTabs(s, 8)
 	wrapped := ansi.Hardwrap(s, width, false)
 	return strings.Split(wrapped, "\n")
+}
+
+// expandTabs replaces each tab with enough spaces to advance to the next
+// `tabSize`-column tab stop. It only inspects ASCII so it stays cheap;
+// any embedded ANSI escape sequences are passed through unchanged but
+// counted as visible — diff payload doesn't normally contain escapes.
+func expandTabs(s string, tabSize int) string {
+	if !strings.ContainsRune(s, '\t') {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s) + 8)
+	col := 0
+	for _, r := range s {
+		if r == '\t' {
+			pad := tabSize - (col % tabSize)
+			for i := 0; i < pad; i++ {
+				b.WriteByte(' ')
+			}
+			col += pad
+			continue
+		}
+		b.WriteRune(r)
+		col++
+	}
+	return b.String()
 }
 
 func renderFileDiff(m *model) (body string, ranges []hunkRange, lines []lineRange, cursorRow int) {
