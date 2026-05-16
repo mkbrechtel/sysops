@@ -58,12 +58,16 @@ func newNavModel(t *testing.T) *model {
 func TestNavTabCyclesSections(t *testing.T) {
 	m := newNavModel(t)
 	start := m.sect
-	for i := 0; i < numSections; i++ {
+	// sectionFileReview is hidden from the Tab cycle (its content
+	// lives as highlights in Tree). 6 Tabs should bring us back to
+	// start.
+	const visibleSections = 6
+	for i := 0; i < visibleSections; i++ {
 		m = step(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 	if m.sect != start {
-		t.Errorf("Tab × numSections should cycle back to start: got %v want %v",
-			m.sect, start)
+		t.Errorf("Tab × %d should cycle back to start: got %v want %v",
+			visibleSections, m.sect, start)
 	}
 }
 

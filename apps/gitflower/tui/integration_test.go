@@ -211,14 +211,16 @@ func TestModeTransitionMatrix(t *testing.T) {
 	m := newModel(sess, tmp, 1000.0)
 	m = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	// Section traversal: visit every section via Tab.
-	start := int(m.sect)
-	for i := 0; i < numSections; i++ {
+	// Section traversal: visit every visible section via Tab. The
+	// sectionFileReview slot is hidden from the cycle now (visited
+	// files surface as Tree highlights), so cycling through 6 Tabs
+	// must return to the starting section.
+	start := m.sect
+	for i := 0; i < 6; i++ {
 		m = step(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
-		want := (start + i + 1) % numSections
-		if int(m.sect) != want {
-			t.Errorf("Tab %d: sect=%d want %d", i, m.sect, want)
-		}
+	}
+	if m.sect != start {
+		t.Errorf("6 Tabs should return to start: got %v want %v", m.sect, start)
 	}
 
 	// Drill into Changes and walk all hunks with j; cursor must always

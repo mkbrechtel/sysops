@@ -153,7 +153,10 @@ func (m *model) viewSidebar() string {
 
 	var lines []string
 	cursorRow := 0
-	for _, sec := range []section{sectionSources, sectionVerdicts, sectionIssues, sectionChanges, sectionCommits, sectionTree, sectionFileReview} {
+	// sectionFileReview is intentionally omitted: visited files are
+	// highlighted in the Tree section instead of living in their own
+	// list.
+	for _, sec := range []section{sectionSources, sectionVerdicts, sectionIssues, sectionChanges, sectionCommits, sectionTree} {
 		items := m.sectionItems(sec)
 		hdr := fmt.Sprintf("%s (%d)", sec.Label(), len(items))
 		if m.mode == modeTree && m.sect == sec {

@@ -254,9 +254,48 @@ func (m *model) renderTreeRow(row treeRow, sect section) string {
 			r, t := m.fileLineCounts(row.fileIdx)
 			return fmt.Sprintf("%s  %s  %d/%d", indent, row.name, r, t)
 		}
+		// Tree section: mark files the reviewer has already opened
+		// for file-review so they can see what they've visited.
+		if sect == sectionTree && m.isFileReviewed(row.fullPath) {
+			return fmt.Sprintf("%s  %s", indent, styleRead.Render(row.name+" ✓"))
+		}
 		return fmt.Sprintf("%s  %s", indent, row.name)
 	}
 	return ""
+}
+
+// nextVisibleSection cycles through the visible (sidebar-rendered)
+// sections in `direction` (+1 / -1). sectionFileReview is hidden
+// from the cycle since its content lives as highlights in Tree.
+func nextVisibleSection(cur section, direction int) section {
+	visible := []section{
+		sectionSources, sectionVerdicts, sectionIssues,
+		sectionChanges, sectionCommits, sectionTree,
+	}
+	idx := -1
+	for i, s := range visible {
+		if s == cur {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		idx = 0
+	}
+	next := (idx + direction + len(visible)) % len(visible)
+	return visible[next]
+}
+
+// isFileReviewed reports whether the given path has at least one
+// FileReview entry in the session — i.e. the reviewer has opened
+// it in modeFile at some point.
+func (m *model) isFileReviewed(path string) bool {
+	for _, fr := range m.sess.FileReviews() {
+		if fr.Path == path {
+			return true
+		}
+	}
+	return false
 }
 
 // isChangesDirExpanded reports whether the given directory is expanded
@@ -317,9 +356,9 @@ func (m *model) updateTree(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		m.treePrev()
 	case "tab":
-		m.sect = section((int(m.sect) + 1) % numSections)
+		m.sect = nextVisibleSection(m.sect, +1)
 	case "shift+tab":
-		m.sect = section((int(m.sect) + numSections - 1) % numSections)
+		m.sect = nextVisibleSection(m.sect, -1)
 	case " ", "space":
 		// On Commits/Verdicts Space walks via spaceWalk; on Changes it
 		// drills into the first unread file (so folder rows fall through
@@ -414,11 +453,17 @@ func (m *model) treeNext() {
 	items := m.currentSectionItems()
 	if m.sectIdx[m.sect]+1 < len(items) {
 		m.sectIdx[m.sect]++
-	} else if int(m.sect)+1 < numSections {
-		for s := int(m.sect) + 1; s < numSections; s++ {
-			if len(m.sectionItems(section(s))) > 0 {
-				m.sect = section(s)
-				m.sectIdx[m.sect] = 0
+	} else {
+		// Wrap-skip to the next visible section that has items.
+		s := m.sect
+		for i := 0; i < 8; i++ {
+			s = nextVisibleSection(s, +1)
+			if s == m.sect {
+				break
+			}
+			if len(m.sectionItems(s)) > 0 {
+				m.sect = s
+				m.sectIdx[s] = 0
 				break
 			}
 		}
@@ -429,12 +474,17 @@ func (m *model) treeNext() {
 func (m *model) treePrev() {
 	if m.sectIdx[m.sect] > 0 {
 		m.sectIdx[m.sect]--
-	} else if int(m.sect) > 0 {
-		for s := int(m.sect) - 1; s >= 0; s-- {
-			items := m.sectionItems(section(s))
+	} else {
+		s := m.sect
+		for i := 0; i < 8; i++ {
+			s = nextVisibleSection(s, -1)
+			if s == m.sect {
+				break
+			}
+			items := m.sectionItems(s)
 			if len(items) > 0 {
-				m.sect = section(s)
-				m.sectIdx[m.sect] = len(items) - 1
+				m.sect = s
+				m.sectIdx[s] = len(items) - 1
 				break
 			}
 		}

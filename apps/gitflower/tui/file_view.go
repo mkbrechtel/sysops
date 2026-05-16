@@ -32,11 +32,20 @@ func (m *model) updateFile(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.ScrollLeft(4)
 			return m, nil
 		}
-		// Park the section cursor on the file we were just reviewing.
-		m.sect = sectionFileReview
-		for i, fr := range m.sess.FileReviews() {
-			if fr.Path == m.filePath {
-				m.sectIdx[sectionFileReview] = i
+		// Park the Tree sidebar cursor on the file we were reading,
+		// expanding any collapsed parent folders so the row is
+		// actually visible. This lets the reviewer fluidly drill
+		// into more files from the same tree position.
+		m.sect = sectionTree
+		dir := pathDir(m.filePath)
+		for dir != "" {
+			m.fileTreeExpanded[dir] = true
+			dir = pathDir(dir)
+		}
+		m.fileTreeRows = m.buildFileTreeRows()
+		for i, row := range m.fileTreeRows {
+			if row.kind == tnFile && row.fullPath == m.filePath {
+				m.sectIdx[sectionTree] = i
 				break
 			}
 		}
