@@ -2001,7 +2001,7 @@ var (
 	styleCtx      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	styleHunk     = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
 	styleCursor   = lipgloss.NewStyle().Background(lipgloss.Color("237"))
-	cursorBg      = lipgloss.Color("236")
+	cursorBg      = lipgloss.Color("141") // light purple (xterm-256)
 	styleLineCur  = lipgloss.NewStyle().Background(cursorBg).Bold(true)
 	styleSel      = lipgloss.NewStyle().Background(lipgloss.Color("235"))
 	styleRead     = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
