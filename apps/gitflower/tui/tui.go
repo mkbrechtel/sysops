@@ -1979,11 +1979,19 @@ func (m *model) refreshViewport() {
 	m.hunkRanges = ranges
 	m.lineRanges = lines
 	m.viewport.SetContent(body)
-	target := cursorRow - m.viewport.Height()/3
-	if target < 0 {
-		target = 0
+	// Only scroll the viewport when the cursor would otherwise leave
+	// the visible window. Re-centering on every refresh made arrow
+	// navigation feel jumpy — the viewport would snap whenever the
+	// cursor was already comfortably visible.
+	top := m.viewport.YOffset()
+	bot := top + m.viewport.Height() - 1
+	if cursorRow < top || cursorRow > bot {
+		target := cursorRow - m.viewport.Height()/3
+		if target < 0 {
+			target = 0
+		}
+		m.viewport.SetYOffset(target)
 	}
-	m.viewport.SetYOffset(target)
 	m.updateDisplayed()
 }
 
