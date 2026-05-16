@@ -978,6 +978,16 @@ func (m *model) spaceWalkInFile() {
 		return
 	}
 
+	// If the next unread hunk is the one we're already parked on,
+	// Space keeps advancing through it via pageDown — otherwise a
+	// reviewer pressing Space repeatedly on a multi-page unread hunk
+	// would feel stuck. We only do the "jump to 5 before first line"
+	// when we're moving to a NEW unread anchor.
+	if m.hunkIdx == nextHunkIdx {
+		m.pageDown()
+		return
+	}
+
 	// Place the cursor on the first reviewable line of the unread hunk,
 	// then back the viewport up by `pageOverlap` rendered rows so the
 	// reader has a strip of just-read context above the new content.
@@ -985,7 +995,6 @@ func (m *model) spaceWalkInFile() {
 	m.hunkIdx = nextHunkIdx
 	m.lineCursor = m.firstNonDelete(h, 0, +1)
 	m.refreshViewport()
-	// Find this line's rendered position and back the viewport up by 5.
 	for _, lr := range m.lineRanges {
 		if lr.isEOF || lr.hunkIdx != nextHunkIdx || lr.lineIdx != m.lineCursor {
 			continue
