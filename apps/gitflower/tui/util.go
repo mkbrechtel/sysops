@@ -6,10 +6,11 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"gitflower/review"
 )
 
 func truncate(s string, w int) string {
@@ -104,13 +105,20 @@ func expandTabs(s string, tabSize int) string {
 	return b.String()
 }
 
-// commitMessageDiff returns a synthetic diff-string that adds the
-// header + commit-message portion of a `git format-patch --stdout`
-// body as a brand-new file `commit:<short>:(message)`. The reviewer
-// then walks the commit message line by line just like any other
-// added content, so the review-rate gating counts the message too.
-// Returns "" if the patch has no extractable preamble.
-func commitMessageDiff(short, patch string) string {
+// commitMessageHeader is the sentinel hunk header used for the
+// synthetic commit-message hunk. renderFileDiff special-cases this
+// header to render its (LineAdd) lines as plain prose: no "+ " sign,
+// no green background. The lines are kept as LineAdd so the walk
+// and per-line read tracking still apply.
+const commitMessageHeader = "@@ commit message @@"
+
+// commitMessageHunk extracts the header + commit-message portion of
+// a `git format-patch --stdout` body and returns it as a synthetic
+// review.Hunk. Lines are emitted as LineAdd (so the walk treats them
+// as reviewable), but the hunk header is the sentinel that tells the
+// renderer to draw them as prose, not a diff. Returns an empty hunk
+// if the patch has no extractable preamble.
+func commitMessageHunk(patch string) review.Hunk {
 	lines := strings.Split(patch, "\n")
 	var preamble []string
 	for _, ln := range lines {
@@ -119,8 +127,6 @@ func commitMessageDiff(short, patch string) string {
 		}
 		preamble = append(preamble, ln)
 	}
-	// Trim trailing blanks and the trailing "---" file-list block
-	// that format-patch emits between the message and the diff.
 	for len(preamble) > 0 {
 		last := preamble[len(preamble)-1]
 		if last == "" || last == "---" ||
@@ -131,21 +137,13 @@ func commitMessageDiff(short, patch string) string {
 		}
 		break
 	}
-	if len(preamble) == 0 {
-		return ""
+	h := review.Hunk{
+		Header:   commitMessageHeader,
+		OldStart: 0, OldLines: 0,
+		NewStart: 1, NewLines: len(preamble),
 	}
-	var sb strings.Builder
-	path := "commit:" + short + ":(message)"
-	fmt.Fprintf(&sb, "diff --git a/%s b/%s\n", path, path)
-	sb.WriteString("new file mode 100644\n")
-	sb.WriteString("index 0000000..abcdef0\n")
-	fmt.Fprintf(&sb, "--- /dev/null\n")
-	fmt.Fprintf(&sb, "+++ b/%s\n", path)
-	fmt.Fprintf(&sb, "@@ -0,0 +1,%d @@\n", len(preamble))
 	for _, ln := range preamble {
-		sb.WriteString("+")
-		sb.WriteString(ln)
-		sb.WriteString("\n")
+		h.Lines = append(h.Lines, review.Line{Kind: review.LineAdd, Text: ln})
 	}
-	return strings.TrimRight(sb.String(), "\n")
+	return h
 }

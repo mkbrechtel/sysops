@@ -286,12 +286,10 @@ func newModel(sess *review.ReviewSession, root string, readRate float64) *model 
 			continue
 		}
 		combined := review.File{Path: "commit:" + c.Short}
-		// Leading message hunk built from the format-patch preamble
-		// (author / date / subject + commit body).
-		if preamble := commitMessageDiff(c.Short, patch); preamble != "" {
-			if pf := review.ParseDiff(preamble); len(pf) > 0 {
-				combined.Hunks = append(combined.Hunks, pf[0].Hunks...)
-			}
+		// Leading "commit message" hunk — context lines so it renders
+		// as prose (no "+ " sign, no green background).
+		if mh := commitMessageHunk(patch); len(mh.Lines) > 0 {
+			combined.Hunks = append(combined.Hunks, mh)
 		}
 		// Then every file's hunks, with the file path prepended to
 		// the hunk header so the reader can see which file each hunk

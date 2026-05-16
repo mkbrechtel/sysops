@@ -284,21 +284,25 @@ func renderFileDiff(m *model) (body string, ranges []hunkRange, lines []lineRang
 	for hi, h := range f.Hunks {
 		topRow := row
 		anchor := review.HunkAnchor(f.Path, h.NewStart, h.NewLines)
-		// Hunks are visual separators now: render the @@ title with
-		// no read marker. Marker (good/bad) still applies because
-		// reactions are inherently hunk-level.
-		var mk string
-		switch m.sess.Marker(anchor) {
-		case review.MarkerGood:
-			mk = styleMarkGood.Render("+ ")
-		case review.MarkerBad:
-			mk = styleMarkBad.Render("- ")
-		default:
-			mk = "  "
+		isMessage := h.Header == commitMessageHeader
+		// Hunks are visual separators: render the @@ title with no
+		// read marker, just the good/bad reaction. The synthetic
+		// "commit message" hunk skips its title row entirely — the
+		// message flows straight into the buffer.
+		if !isMessage {
+			var mk string
+			switch m.sess.Marker(anchor) {
+			case review.MarkerGood:
+				mk = styleMarkGood.Render("+ ")
+			case review.MarkerBad:
+				mk = styleMarkBad.Render("- ")
+			default:
+				mk = "  "
+			}
+			gutterPad := strings.Repeat(" ", gutterW)
+			sb.WriteString(gutterPad + styleHunk.Render(mk+h.Header) + "\n")
+			row++
 		}
-		gutterPad := strings.Repeat(" ", gutterW)
-		sb.WriteString(gutterPad + styleHunk.Render(mk+h.Header) + "\n")
-		row++
 
 		editorLineIdx := -1
 		if editing && hi == m.hunkIdx {
@@ -309,11 +313,14 @@ func renderFileDiff(m *model) (body string, ranges []hunkRange, lines []lineRang
 		newLine := h.NewStart
 		for li, ln := range h.Lines {
 			var oldStr, newStr string
-			switch ln.Kind {
-			case review.LineAdd:
+			switch {
+			case isMessage:
+				oldStr = blank
+				newStr = blank
+			case ln.Kind == review.LineAdd:
 				oldStr = blank
 				newStr = fmt.Sprintf("%*d", numW, newLine)
-			case review.LineDelete:
+			case ln.Kind == review.LineDelete:
 				oldStr = fmt.Sprintf("%*d", numW, oldLine)
 				newStr = blank
 			default:
@@ -326,8 +333,19 @@ func renderFileDiff(m *model) (body string, ranges []hunkRange, lines []lineRang
 			read := m.lineRead[lk]
 			skipped := m.lineSkipped[lk]
 			_ = anchor
-			switch ln.Kind {
-			case review.LineAdd:
+			switch {
+			case isMessage:
+				// Commit-message lines: plain prose, no diff sign
+				// or BG. Once read they dim like read context lines.
+				sign = "  "
+				if read {
+					styleLn = styleRead
+				} else if skipped {
+					styleLn = styleDim
+				} else {
+					styleLn = lipgloss.NewStyle()
+				}
+			case ln.Kind == review.LineAdd:
 				sign = "+ "
 				switch {
 				case read:
@@ -337,7 +355,7 @@ func renderFileDiff(m *model) (body string, ranges []hunkRange, lines []lineRang
 				default:
 					styleLn = styleAddUnread
 				}
-			case review.LineDelete:
+			case ln.Kind == review.LineDelete:
 				sign = "- "
 				switch {
 				case read:
