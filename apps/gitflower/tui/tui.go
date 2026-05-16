@@ -305,9 +305,18 @@ func (m *model) drainCmds() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// sidebarVisible decides whether to show the section sidebar. In line
+// modes we drop it so the diff/file gets the whole screen — the user can
+// always Esc/left-arrow back to section mode to see it again.
+func (m *model) sidebarVisible() bool {
+	return m.mode == modeTree
+}
+
 func (m *model) resize() {
-	sbw := sidebarWidth(m.width)
-	mainW := m.width - sbw - 2
+	mainW := m.width
+	if m.sidebarVisible() {
+		mainW -= sidebarWidth(m.width) + 2
+	}
 	if mainW < 20 {
 		mainW = 20
 	}
@@ -1075,6 +1084,16 @@ func (m *model) snapCursorIntoView() {
 	if len(m.lineRanges) == 0 {
 		return
 	}
+	// If the viewport is scrolled all the way to the bottom, jump to
+	// the EOF marker — otherwise the cursor would stick on whatever
+	// hunk line happens to occupy the top row and further PgDn presses
+	// feel like nothing happened.
+	if m.viewport.AtBottom() {
+		if eof := m.eofRange(); eof != nil {
+			m.placeCursor(*eof)
+			return
+		}
+	}
 	top := m.viewport.YOffset()
 	// Pick the first reviewable element whose top is at or below the
 	// viewport top. lineRanges already accounts for wrap and inline
@@ -1566,6 +1585,10 @@ func (m *model) updateDisplayed() {
 
 
 func (m *model) refreshViewport() {
+	// The viewport width depends on whether the sidebar is showing,
+	// which depends on mode. Re-resize on every refresh so mode flips
+	// take effect on the next render.
+	m.resize()
 	var body string
 	var ranges []hunkRange
 	var lines []lineRange
@@ -1647,9 +1670,13 @@ func (m *model) View() tea.View {
 		return v
 	}
 
-	sidebar := m.viewSidebar()
+	var body string
 	main := m.viewMain()
-	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, main)
+	if m.sidebarVisible() {
+		body = lipgloss.JoinHorizontal(lipgloss.Top, m.viewSidebar(), main)
+	} else {
+		body = main
+	}
 
 	left := fmt.Sprintf(" %s | verdict: %s ", m.modeName(), m.sess.Verdict)
 	right := " " + m.status + " "

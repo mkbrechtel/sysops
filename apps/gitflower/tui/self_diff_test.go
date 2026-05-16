@@ -142,3 +142,126 @@ func TestSpaceWalkOnSelfRepoInProcess(t *testing.T) {
 		t.Errorf("only %d/%d hunks read; per-file:\n%s", totalRead, totalHunks, report.String())
 	}
 }
+
+// TestPageScrollKeepsCursorVisible scrolls a long file all the way down
+// with PgDn and then back up with PgUp, asserting that the line cursor's
+// rendered row is always inside the viewport — never "stuck" at the
+// bottom (or anywhere off-screen).
+func TestPageScrollKeepsCursorVisible(t *testing.T) {
+	repo := "/tmp/gitflower-self-test-repo"
+	if _, err := os.Stat(repo); err != nil {
+		setup := filepath.Join("..", "test", "e2e", "setup-self.sh")
+		out, err := exec.Command(setup, repo).CombinedOutput()
+		if err != nil {
+			t.Skipf("setup-self.sh unavailable: %v\n%s", err, out)
+		}
+	}
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+	if err := os.Chdir(repo); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	scope, err := review.ScopeFor("experiments/stack-review", "main")
+	if err != nil {
+		t.Skipf("ScopeFor: %v", err)
+	}
+
+	tmp := t.TempDir()
+	reviewPath := filepath.Join(tmp, "test.review")
+	sess := review.New(*scope, "reviewer@example.com", reviewPath)
+	m := newModel(sess, repo, 1*time.Millisecond)
+	m = step(t, m, tea.WindowSizeMsg{Width: 120, Height: 30})
+
+	// Find the longest file and drill into it.
+	longest := 0
+	for i, f := range m.files {
+		if len(f.Hunks) > 0 {
+			rows := 0
+			for _, h := range f.Hunks {
+				rows += len(h.Lines)
+			}
+			if rows > 200 {
+				longest = i
+				break
+			}
+		}
+	}
+	m.sectIdx[sectionChanges] = longest
+	m.fileIdx = longest
+	m.hunkIdx = 0
+	m.atEOF = false
+	m.mode = modeDiff
+	m.lineCursor = 0
+	m.refreshViewport()
+
+	totalRows := 0
+	for _, lr := range m.lineRanges {
+		if lr.botRow > totalRows {
+			totalRows = lr.botRow
+		}
+	}
+	t.Logf("file %s totalRows=%d height=%d", m.files[longest].Path, totalRows, m.viewport.Height())
+
+	assertCursorOnScreen := func(label string) {
+		t.Helper()
+		top := m.viewport.YOffset()
+		bot := top + m.viewport.Height() - 1
+		// Find the cursor's rendered range.
+		var lr *lineRange
+		if m.atEOF {
+			lr = m.eofRange()
+		} else {
+			for i := range m.lineRanges {
+				r := &m.lineRanges[i]
+				if !r.isEOF && r.hunkIdx == m.hunkIdx && r.lineIdx == m.lineCursor {
+					lr = r
+					break
+				}
+			}
+		}
+		if lr == nil {
+			t.Fatalf("%s: no lineRange for cursor (hunk=%d line=%d atEOF=%v)",
+				label, m.hunkIdx, m.lineCursor, m.atEOF)
+		}
+		if lr.botRow < top || lr.topRow > bot {
+			t.Errorf("%s: cursor off-screen — cursor rows [%d..%d], viewport [%d..%d]",
+				label, lr.topRow, lr.botRow, top, bot)
+		}
+	}
+
+	hitEOFAt := -1
+	for i := 0; i < 400; i++ {
+		m = step(t, m, tea.KeyPressMsg{Code: tea.KeyPgDown})
+		assertCursorOnScreen(fmt.Sprintf("pgdown #%d (yOffset=%d)", i, m.viewport.YOffset()))
+		if hitEOFAt < 0 && m.atEOF {
+			hitEOFAt = i
+		}
+	}
+	if hitEOFAt < 0 {
+		t.Errorf("never reached EOF after 400 PgDn on %s (totalRows=%d)",
+			m.files[longest].Path, totalRows)
+	}
+	for i := 0; i < 400; i++ {
+		m = step(t, m, tea.KeyPressMsg{Code: tea.KeyPgUp})
+		assertCursorOnScreen(fmt.Sprintf("pgup #%d (yOffset=%d atEOF=%v)", i, m.viewport.YOffset(), m.atEOF))
+		if m.viewport.YOffset() == 0 {
+			break
+		}
+	}
+
+	// Now do the same in section mode (tree peek of Changes). The marker
+	// should move with PgDn even though we never left section mode.
+	m.mode = modeTree
+	m.sect = sectionChanges
+	m.atEOF = false
+	m.hunkIdx = 0
+	m.lineCursor = 0
+	m.refreshViewport()
+	for i := 0; i < 100; i++ {
+		m = step(t, m, tea.KeyPressMsg{Code: tea.KeyPgDown})
+		assertCursorOnScreen(fmt.Sprintf("section pgdown #%d (yOffset=%d)", i, m.viewport.YOffset()))
+		if m.atEOF {
+			break
+		}
+	}
+}
