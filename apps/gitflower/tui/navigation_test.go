@@ -523,6 +523,51 @@ func TestNavLeftArrowCollapseThenStepUp(t *testing.T) {
 	}
 }
 
+// TestNavSidebarFollowsSpaceWalk: as Space jumps the diff cursor
+// across files, the Changes sidebar cursor follows the active file
+// instead of staying parked on the first one.
+func TestNavSidebarFollowsSpaceWalk(t *testing.T) {
+	m := newNavModel(t)
+	for m.sect != sectionChanges {
+		m = step(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+	_ = m.sectionItems(sectionChanges)
+
+	// Drill in (Space).
+	m = key(t, m, ' ', " ")
+	startFile := m.fileIdx
+	startRow := m.sectIdx[sectionChanges]
+
+	// Mark every reviewable line in the current file as read so
+	// the next Space has to advance to a new file.
+	f := &m.files[m.fileIdx]
+	for hi, h := range f.Hunks {
+		for li, ln := range h.Lines {
+			if ln.Kind == review.LineAdd || ln.Kind == review.LineDelete {
+				m.lineRead[lineKey{fileIdx: m.fileIdx, hunkIdx: hi, lineIdx: li}] = true
+			}
+		}
+	}
+	// Two Spaces to walk past EOF into the next file.
+	m = key(t, m, ' ', " ")
+	m = key(t, m, ' ', " ")
+	if m.fileIdx == startFile {
+		t.Fatalf("Space-walk didn't advance off file %d", startFile)
+	}
+	// The Changes sidebar cursor should now point at the new file.
+	wantRow := m.changesRowForFile(m.fileIdx)
+	if wantRow < 0 {
+		t.Fatalf("new fileIdx %d has no row in changesRows", m.fileIdx)
+	}
+	if m.sectIdx[sectionChanges] != wantRow {
+		t.Errorf("sidebar didn't follow walk: row was %d, want %d (file %d)",
+			m.sectIdx[sectionChanges], wantRow, m.fileIdx)
+	}
+	if m.sectIdx[sectionChanges] == startRow {
+		t.Errorf("sidebar cursor stuck on starting row %d", startRow)
+	}
+}
+
 // TestNavCommitsEscReturnsToCommitsSection: after drilling into a
 // commit via the sidebar, Esc / left-arrow should land back on the
 // Commits section with the cursor on the commit we were just in —

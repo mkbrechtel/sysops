@@ -387,8 +387,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		marked := 0
 		top := m.viewport.YOffset()
 		bot := top + m.viewport.Height() - 1
-		switch m.mode {
-		case modeDiff:
+		switch m.peekKind() {
+		case "diff":
 			for _, lr := range m.lineRanges {
 				if lr.isEOF {
 					continue
@@ -409,7 +409,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				delete(m.lineSkipped, lk)
 				marked++
 			}
-		case modeFile:
+		case "file":
 			setForFile := m.fileLineRead[m.filePath]
 			if setForFile == nil {
 				setForFile = map[int]bool{}

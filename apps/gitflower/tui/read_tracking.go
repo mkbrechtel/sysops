@@ -45,15 +45,37 @@ func (m *model) updateDisplayed() {
 	}))
 }
 
-// countVisibleUnreadLines counts reviewable diff lines (modeDiff) or
-// file-content lines (modeFile) that are currently in the viewport
-// and not yet read. Drives the per-view tick delay.
+// peekKind reports what kind of trackable content is currently being
+// shown — both the line modes AND the modeTree peek count as
+// trackable so the reviewer's eyes on the peek pane still earn read
+// marks. Returns "" when there's nothing to track.
+func (m *model) peekKind() string {
+	switch m.mode {
+	case modeDiff:
+		return "diff"
+	case modeFile:
+		return "file"
+	case modeTree:
+		switch m.sect {
+		case sectionChanges:
+			return "diff"
+		case sectionFileReview, sectionTree:
+			return "file"
+		}
+	}
+	return ""
+}
+
+// countVisibleUnreadLines counts reviewable diff lines or file-content
+// lines that are currently in the viewport and not yet read — for
+// both real line modes and the modeTree peek panes. Drives the
+// per-view tick delay.
 func (m *model) countVisibleUnreadLines() int {
 	top := m.viewport.YOffset()
 	bot := top + m.viewport.Height() - 1
 	count := 0
-	switch m.mode {
-	case modeDiff:
+	switch m.peekKind() {
+	case "diff":
 		for _, lr := range m.lineRanges {
 			if lr.isEOF {
 				continue
@@ -70,7 +92,7 @@ func (m *model) countVisibleUnreadLines() int {
 			}
 			count++
 		}
-	case modeFile:
+	case "file":
 		// File-mode rendered rows = file lines, 1:1 (no wrap-aware
 		// lineRanges yet). The viewport's row index IS the line index.
 		setForFile := m.fileLineRead[m.filePath]

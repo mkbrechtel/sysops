@@ -62,12 +62,15 @@ var (
 var _ = []lipgloss.Style{styleAdd, styleDel, styleSel, styleUnread, styleCursor}
 
 func sidebarWidth(total int) int {
-	w := total / 4
+	// Scale the sidebar with the terminal: a third of the width on
+	// wide screens, clamped to [24, 60] so it never crowds the main
+	// pane on giant monitors or disappears on tiny ones.
+	w := total / 3
 	if w < 24 {
 		w = 24
 	}
-	if w > 40 {
-		w = 40
+	if w > 60 {
+		w = 60
 	}
 	return w
 }
@@ -170,7 +173,16 @@ func (m *model) viewSidebar() string {
 				marker = "▶ "
 				cursorRow = len(lines)
 			}
-			line := marker + truncate(item, w-3)
+			// Commit rows start with the SHA slug; truncate from the
+			// right so the slug always stays visible. Everything else
+			// keeps the trailing-tail truncation (file names etc).
+			label := item
+			if sec == sectionCommits {
+				label = truncateRight(item, w-3)
+			} else {
+				label = truncate(item, w-3)
+			}
+			line := marker + label
 			if isCursor {
 				line = sidebarCur.Render(line)
 			}

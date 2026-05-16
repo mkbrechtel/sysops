@@ -264,6 +264,46 @@ func (m *model) renderTreeRow(row treeRow, sect section) string {
 	return ""
 }
 
+// syncSidebarsToCurrentFile parks every relevant sidebar cursor on
+// the file currently under the diff-mode cursor. Called from
+// spaceWalk and the scroll/page helpers so the sidebar marker
+// always tracks the file the reviewer is looking at, even when a
+// Space-walk jumped across files.
+func (m *model) syncSidebarsToCurrentFile() {
+	f := m.currentFile()
+	if f == nil {
+		return
+	}
+	path := f.Path
+	if strings.HasPrefix(path, "commit:") {
+		short := strings.TrimPrefix(path, "commit:")
+		for i, c := range m.sess.Scope.Commits {
+			if c.Short == short {
+				m.sectIdx[sectionCommits] = i
+				break
+			}
+		}
+		return
+	}
+	// Real file: update Changes (row index) and Tree (auto-expand
+	// any collapsed parents so the row is actually visible).
+	if r := m.changesRowForFile(m.fileIdx); r >= 0 {
+		m.sectIdx[sectionChanges] = r
+	}
+	dir := pathDir(path)
+	for dir != "" {
+		m.fileTreeExpanded[dir] = true
+		dir = pathDir(dir)
+	}
+	m.fileTreeRows = m.buildFileTreeRows()
+	for i, row := range m.fileTreeRows {
+		if row.kind == tnFile && row.fullPath == path {
+			m.sectIdx[sectionTree] = i
+			break
+		}
+	}
+}
+
 // expandOrStepIn implements the right-arrow tree navigation:
 //   * folder + collapsed → expand it
 //   * folder + expanded  → move cursor to the first child row

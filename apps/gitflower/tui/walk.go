@@ -79,6 +79,7 @@ func (m *model) spaceWalk() {
 				m.hunkIdx = -1
 				m.atEOF = false
 				m.refreshViewport()
+				m.syncSidebarsToCurrentFile()
 				m.spaceWalkInFile()
 				return
 			}
@@ -90,6 +91,7 @@ func (m *model) spaceWalk() {
 	}
 
 	m.spaceWalkInFile()
+	m.syncSidebarsToCurrentFile()
 }
 
 // spaceWalkInFile jumps the cursor to "5 rendered rows before the next
@@ -300,11 +302,7 @@ func (m *model) scrollViewport(msg tea.Msg) tea.Cmd {
 				m.placeCursor(*eof)
 			}
 		}
-		if m.mode == modeTree && m.sect == sectionChanges {
-			if r := m.changesRowForFile(m.fileIdx); r >= 0 {
-				m.sectIdx[sectionChanges] = r
-			}
-		}
+		m.syncSidebarsToCurrentFile()
 		if oldHunk != m.hunkIdx || oldLine != m.lineCursor || oldEOF != m.atEOF {
 			off := m.viewport.YOffset()
 			m.refreshViewport()
@@ -380,11 +378,7 @@ func (m *model) pageDown() {
 	m.refreshViewport()
 	m.viewport.SetYOffset(off)
 	m.updateDisplayed()
-	if m.mode == modeTree && m.sect == sectionChanges {
-		if r := m.changesRowForFile(m.fileIdx); r >= 0 {
-			m.sectIdx[sectionChanges] = r
-		}
-	}
+	m.syncSidebarsToCurrentFile()
 }
 
 // pageUp mirrors pageDown.
@@ -446,11 +440,7 @@ func (m *model) pageUp() {
 	m.refreshViewport()
 	m.viewport.SetYOffset(off)
 	m.updateDisplayed()
-	if m.mode == modeTree && m.sect == sectionChanges {
-		if r := m.changesRowForFile(m.fileIdx); r >= 0 {
-			m.sectIdx[sectionChanges] = r
-		}
-	}
+	m.syncSidebarsToCurrentFile()
 }
 
 // toggleWrap switches the diff/file viewport between soft-wrap and

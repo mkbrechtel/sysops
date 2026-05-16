@@ -26,6 +26,22 @@ func truncate(s string, w int) string {
 	return "…" + s[len(s)-w+1:]
 }
 
+// truncateRight keeps the left side of `s` (the important prefix —
+// e.g. a SHA slug) and trims the right with an ellipsis. Mirror of
+// `truncate` for cases where the suffix is the disposable bit.
+func truncateRight(s string, w int) string {
+	if w < 1 {
+		return ""
+	}
+	if len(s) <= w {
+		return s
+	}
+	if w < 4 {
+		return s[:w]
+	}
+	return s[:w-1] + "…"
+}
+
 func atoi(s string) (int, bool) {
 	n := 0
 	if s == "" {
