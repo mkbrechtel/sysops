@@ -263,26 +263,28 @@ func renderQuotedDiff(sb *strings.Builder, path, patch string, evs []emittableEv
 
 		kind := line[0]
 		body := line[1:]
-		// Line-number gutter format:
-		//   add (+):  "> <new> +<content>"
-		//   del (-):  "> <old> -<content>"
-		//   ctx (:):  "> <new> <old> :<content>"   (two numbers, always)
-		// Context uses ':' (not the unified-diff space) so Parse can
-		// tell context apart from added lines by the sign character
-		// alone, regardless of how many numbers prefix it.
+		// Line-number gutter format — mirrors git's `@@ -<old> +<new>
+		// @@` convention, so old is always on the left. The `:` sits
+		// directly after the last number (no space before it) so a
+		// regex can lock onto `[0-9]+:` to split gutter from content:
+		//   del (-):  "> <old>: -<content>"
+		//   add (+):  "> <new>: +<content>"
+		//   ctx ( ):  "> <old> <new>: <content>"   (two numbers, always)
+		// Context lines drop the unified-diff leading space; the
+		// absence of a +/- sign after `: ` is the context marker.
 		switch kind {
 		case '+':
-			fmt.Fprintf(sb, "> %*d +%s\n", numW, newLine, body)
+			fmt.Fprintf(sb, "> %*d: +%s\n", numW, newLine, body)
 			emitEvents(sb, byLineEnd[newLine])
 			delete(byLineEnd, newLine)
 			newLine++
 			hunkBudget--
 		case '-':
-			fmt.Fprintf(sb, "> %*d -%s\n", numW, oldLine, body)
+			fmt.Fprintf(sb, "> %*d: -%s\n", numW, oldLine, body)
 			oldLine++
 			// Deletes don't consume new-side budget.
 		case ' ':
-			fmt.Fprintf(sb, "> %*d %*d :%s\n", numW, newLine, numW, oldLine, body)
+			fmt.Fprintf(sb, "> %*d %*d: %s\n", numW, oldLine, numW, newLine, body)
 			emitEvents(sb, byLineEnd[newLine])
 			delete(byLineEnd, newLine)
 			newLine++

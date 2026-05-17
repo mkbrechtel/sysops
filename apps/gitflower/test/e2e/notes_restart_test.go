@@ -31,6 +31,11 @@ func TestReviewRestartShowsComment(t *testing.T) {
 	repo := buildRepoAt(t, "/tmp/gitflower-e2e-repo-restart")
 	gitCmd(t, repo, "config", "user.email", "reviewer@example.com")
 
+	// One asciicast spans BOTH sessions so playback shows the
+	// "quit → restart → comment is still there" story end-to-end.
+	cast, closeCast := openCast(t, 120, 40)
+	defer closeCast()
+
 	// --- session 1: add a unique comment, then quit -----------------
 	{
 		cmd := exec.Command(bin, "review",
@@ -48,7 +53,8 @@ func TestReviewRestartShowsComment(t *testing.T) {
 		_ = pty.Setsize(ptmx, &pty.Winsize{Rows: 40, Cols: 120})
 
 		var captured bytes.Buffer
-		go io.Copy(&captured, ptmx)
+		sink := teeWriters(&captured, cast)
+		go io.Copy(sink, ptmx)
 
 		steps := []sendStep{
 			{wait: 800 * time.Millisecond},
@@ -97,7 +103,8 @@ func TestReviewRestartShowsComment(t *testing.T) {
 	_ = pty.Setsize(ptmx, &pty.Winsize{Rows: 40, Cols: 120})
 
 	var captured bytes.Buffer
-	go io.Copy(&captured, ptmx)
+	sink := teeWriters(&captured, cast)
+	go io.Copy(sink, ptmx)
 
 	steps := []sendStep{
 		{wait: 800 * time.Millisecond},

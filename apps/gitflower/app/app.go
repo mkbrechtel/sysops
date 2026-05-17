@@ -33,7 +33,12 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  gitflower review [<branch>]   Open a TUI review of <branch>")
-	fmt.Fprintln(w, "  gitflower mr list             List active merge requests")
+	if WithReviewMerge {
+		fmt.Fprintln(w, "  gitflower review merge        Archive the active review into HEAD")
+	}
+	if WithMRs {
+		fmt.Fprintln(w, "  gitflower mr list             List active merge requests")
+	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run `gitflower <command> -h` for command-specific flags.")
 }

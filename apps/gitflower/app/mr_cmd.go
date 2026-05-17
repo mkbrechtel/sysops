@@ -1,13 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 // SPDX-License-Identifier: EUPL-1.2
 
+//go:build with_mrs
+
 package app
 
 import (
 	"flag"
 	"fmt"
 	"io"
-	"strings"
+
+	"gitflower/internal/git"
 )
 
 func cmdMR(args []string, stdout, stderr io.Writer) int {
@@ -44,47 +47,42 @@ func cmdMRList(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	var refs []string
+	var prefixes []string
 	switch {
 	case *all:
-		refs = []string{"refs/heads/mr/", "refs/heads/archive/mr/"}
+		prefixes = []string{"refs/heads/mr/", "refs/heads/archive/mr/"}
 	case *archived:
-		refs = []string{"refs/heads/archive/mr/"}
+		prefixes = []string{"refs/heads/archive/mr/"}
 	default:
-		refs = []string{"refs/heads/mr/"}
+		prefixes = []string{"refs/heads/mr/"}
 	}
 
-	gitArgs := append([]string{"for-each-ref", "--format=%(refname:short)|%(subject)"}, refs...)
-	out, err := gitOutput(gitArgs...)
+	repo, err := git.Open("")
 	if err != nil {
 		fmt.Fprintf(stderr, "mr list: %v\n", err)
 		return 1
 	}
-	if out == "" {
+	refs, err := repo.ForEachRefPrefix(prefixes...)
+	if err != nil {
+		fmt.Fprintf(stderr, "mr list: %v\n", err)
+		return 1
+	}
+	if len(refs) == 0 {
 		return 0
 	}
 
-	// Compute padding for nicer alignment.
+	// Compute padding for nicer alignment, capped to 60 cols.
 	pad := 0
-	for _, line := range strings.Split(out, "\n") {
-		parts := strings.SplitN(line, "|", 2)
-		if len(parts) < 2 {
-			continue
-		}
-		if n := len(parts[0]); n > pad {
+	for _, ri := range refs {
+		if n := len(ri.Name); n > pad {
 			pad = n
 		}
 	}
 	if pad > 60 {
 		pad = 60
 	}
-
-	for _, line := range strings.Split(out, "\n") {
-		parts := strings.SplitN(line, "|", 2)
-		if len(parts) < 2 {
-			continue
-		}
-		fmt.Fprintf(stdout, "%-*s  %s\n", pad, parts[0], parts[1])
+	for _, ri := range refs {
+		fmt.Fprintf(stdout, "%-*s  %s\n", pad, ri.Name, ri.Subject)
 	}
 	return 0
 }

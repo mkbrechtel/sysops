@@ -59,10 +59,10 @@ func TestParseInitializesSkippedMap(t *testing.T) {
 //
 //	add line:  "> <new>     +content"
 //	del line:  "> <old>     -content"
-//	ctx line:  "> <new> <old> :content"
+//	ctx line:  "> <old> <new> :content"   (old left, like @@ -<old> +<new> @@)
 //
 // All numbers come BEFORE the sign character. Context carries two
-// numbers (new and old) so a reader can recover the position even
+// numbers (old and new) so a reader can recover the position even
 // when the two sides diverge.
 func TestLineNumbersInDiff(t *testing.T) {
 	// Synthesise a patch with all three line kinds — one delete, one
@@ -96,10 +96,10 @@ index 1111111..2222222 100644
 	out := review.Render(s)
 
 	for _, want := range []string{
-		"> 1 1 :alpha",   // context, new=1 old=1
-		"> 2 -beta",      // delete, old=2
-		"> 2 +BETA",      // add, new=2
-		"> 3 3 :gamma",   // context, new=3 old=3
+		"> 1 1 :alpha", // context, old=1 new=1
+		"> 2 -beta",    // delete, old=2
+		"> 2 +BETA",    // add, new=2
+		"> 3 3 :gamma", // context, old=3 new=3
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("rendered diff missing %q\n--- BEGIN ---\n%s\n--- END ---",
@@ -125,5 +125,52 @@ index 1111111..2222222 100644
 	}
 	if got := parsed.Comments()[0].Anchor; got != "x.txt:2" {
 		t.Errorf("comment anchor lost in roundtrip: got %q want x.txt:2", got)
+	}
+}
+
+// TestLineNumbersContextOrderDiverges nails down the `old new` order
+// on context lines specifically when the two sides no longer match.
+// Inserting two lines after line 1 of a three-line file: line 2 of
+// the old side becomes line 4 of the new side, etc. The first number
+// in the gutter must be the OLD one.
+func TestLineNumbersContextOrderDiverges(t *testing.T) {
+	patch := `diff --git a/x.txt b/x.txt
+index 1111111..2222222 100644
+--- a/x.txt
++++ b/x.txt
+@@ -1,3 +1,5 @@
+ line 1
++inserted A
++inserted B
+ line 2
+ line 3`
+	scope := review.Scope{
+		Branch: "feat", Base: "main",
+		TipSHA: "a", BaseSHA: "b", Diff: "main..feat", Title: "feat",
+		Files:   []string{"x.txt"},
+		RawDiff: patch,
+		FilePatches: map[string]string{
+			"x.txt": patch,
+		},
+		CommitPatches: map[string]string{},
+	}
+	s := review.New(scope, "alice@example.com", "")
+	s.AddVerdict(review.VerdictEvent{State: review.VerdictOpen})
+
+	out := review.Render(s)
+
+	// `line 2` is old=2 new=4 after the insertion; `line 3` is old=3
+	// new=5. Old must be on the left in both.
+	for _, want := range []string{
+		"> 1 1 :line 1",
+		"> 2 +inserted A",
+		"> 3 +inserted B",
+		"> 2 4 :line 2",
+		"> 3 5 :line 3",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("rendered diff missing %q\n--- BEGIN ---\n%s\n--- END ---",
+				want, out)
+		}
 	}
 }

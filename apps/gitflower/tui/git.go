@@ -1,45 +1,51 @@
 // SPDX-FileCopyrightText: 2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
 // SPDX-License-Identifier: EUPL-1.2
 
-// Thin wrappers around the `git` CLI used by the TUI. Keeping them
-// isolated makes it easy to swap in a different VCS or a test fake.
+// Thin wrappers around the repo for the TUI's needs. Backed by
+// the internal/git package (go-git) — no external git binary.
 
 package tui
 
 import (
-	"os/exec"
 	"strings"
+
+	"gitflower/internal/git"
 )
 
 func gitRoot() (string, error) {
-	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	r, err := git.Open("")
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimRight(string(out), "\n"), nil
+	return r.Toplevel(), nil
 }
 
 func gitTreeFiles(sha string) ([]string, error) {
-	out, err := exec.Command("git", "ls-tree", "-r", "--name-only", sha).Output()
+	r, err := git.Open("")
 	if err != nil {
 		return nil, err
 	}
-	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
-	var files []string
-	for _, l := range lines {
-		if l != "" {
-			files = append(files, l)
-		}
+	h, err := r.Resolve(sha)
+	if err != nil || h == git.ZeroHash {
+		return nil, err
 	}
-	return files, nil
+	return r.LsTreeR(h)
 }
 
 func gitFileLines(sha, path string) ([]string, error) {
-	out, err := exec.Command("git", "show", sha+":"+path).Output()
+	r, err := git.Open("")
 	if err != nil {
 		return nil, err
 	}
-	s := strings.TrimRight(string(out), "\n")
+	h, err := r.Resolve(sha)
+	if err != nil || h == git.ZeroHash {
+		return nil, err
+	}
+	body, err := r.ReadBlobAtPath(h, path)
+	if err != nil {
+		return nil, err
+	}
+	s := strings.TrimRight(string(body), "\n")
 	if s == "" {
 		return nil, nil
 	}

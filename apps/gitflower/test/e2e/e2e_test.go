@@ -78,10 +78,17 @@ func TestReviewViaPTY(t *testing.T) {
 	}
 
 	// Drain output in the background so the PTY never blocks the child.
+	// Fan the output into the assertion buffer AND (when
+	// ASCIINEMA_OUT_DIR is set) an asciicast file so the reviewer
+	// can replay what this test does instead of reading keystroke
+	// scripts.
 	var captured bytes.Buffer
+	cast, closeCast := openCast(t, 120, 40)
+	defer closeCast()
+	sink := teeWriters(&captured, cast)
 	doneRead := make(chan struct{})
 	go func() {
-		_, _ = io.Copy(&captured, ptmx)
+		_, _ = io.Copy(sink, ptmx)
 		close(doneRead)
 	}()
 
@@ -242,15 +249,29 @@ type sendStep struct {
 }
 
 func buildBinary(t *testing.T) string {
+	return buildBinaryWithTags(t)
+}
+
+// buildBinaryWithTags compiles the gitflower binary with the given
+// build tags enabled. Tests for tag-gated features (review-merge,
+// mrs) pass their tag name so the resulting binary actually has the
+// subcommand registered; the default no-tag build only exercises
+// the on-by-default features.
+func buildBinaryWithTags(t *testing.T, tags ...string) string {
 	t.Helper()
 	tmp := t.TempDir()
 	bin := filepath.Join(tmp, "gitflower")
-	cmd := exec.Command("go", "build", "-o", bin, ".")
+	args := []string{"build", "-o", bin}
+	if len(tags) > 0 {
+		args = append(args, "-tags", strings.Join(tags, " "))
+	}
+	args = append(args, ".")
+	cmd := exec.Command("go", args...)
 	cmd.Dir = mustPkgDir(t)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("go build: %v", err)
+		t.Fatalf("go build %v: %v", tags, err)
 	}
 	return bin
 }

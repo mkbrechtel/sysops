@@ -5,9 +5,10 @@ package review
 
 import (
 	"fmt"
-	"os/exec"
 	"regexp"
 	"strings"
+
+	"gitflower/internal/git"
 )
 
 // Scope describes what a review covers.
@@ -47,9 +48,13 @@ func ScopeFor(branch, base string) (*Scope, error) {
 	if branch == "" {
 		return nil, fmt.Errorf("scope: branch is required")
 	}
-	tip, err := gitOut("rev-parse", "--verify", branch)
+	repo, err := git.Open("")
 	if err != nil {
 		return nil, fmt.Errorf("scope: %w", err)
+	}
+	tip, err := repo.Resolve(branch)
+	if err != nil || tip == git.ZeroHash {
+		return nil, fmt.Errorf("scope: branch %q not found", branch)
 	}
 
 	if base == "" {
@@ -67,57 +72,49 @@ func ScopeFor(branch, base string) (*Scope, error) {
 	if base == "" {
 		base = "main"
 	}
-	baseSHA, err := gitOut("rev-parse", "--verify", base)
-	if err != nil {
+	baseHash, err := repo.Resolve(base)
+	if err != nil || baseHash == git.ZeroHash {
 		return nil, fmt.Errorf("scope: base ref %q not found (override with --base)", base)
 	}
 
-	commitsRaw, err := gitOut("log", "--format=%H %s", base+".."+branch)
+	entries, err := repo.CommitsBetween(baseHash, tip)
 	if err != nil {
 		return nil, fmt.Errorf("scope: %w", err)
 	}
-	if commitsRaw == "" {
+	if len(entries) == 0 {
 		return nil, fmt.Errorf("scope: no commits in %s..%s", base, branch)
 	}
 	var commits []Commit
-	for _, line := range strings.Split(commitsRaw, "\n") {
-		parts := strings.SplitN(line, " ", 2)
-		if len(parts) < 2 {
-			continue
-		}
-		short := parts[0]
+	for _, e := range entries {
+		sha := e.Hash.String()
+		short := sha
 		if len(short) > 7 {
 			short = short[:7]
 		}
-		// Fetch the per-commit patch (mbox-style format-patch output).
-		patch, _ := gitOut("format-patch", "-1", "--stdout", "--no-signature",
-			"--no-color", parts[0])
+		// Per-commit patch: still uses `git format-patch` because
+		// go-git has no equivalent that produces the same
+		// mbox-style output (which our renderer copies verbatim
+		// into the # Commits section of the .review).
+		patch, _ := execFormatPatch(sha)
 		commits = append(commits, Commit{
-			SHA:     parts[0],
+			SHA:     sha,
 			Short:   short,
-			Subject: parts[1],
+			Subject: e.Subject,
 			Patch:   patch,
 		})
 	}
 
-	filesRaw, err := gitOut("diff", "--no-color", "--name-only", base+"..."+branch)
+	files, err := repo.CommitFiles(baseHash, tip)
 	if err != nil {
 		return nil, fmt.Errorf("scope: %w", err)
 	}
-	var files []string
-	for _, f := range strings.Split(filesRaw, "\n") {
-		if f != "" {
-			files = append(files, f)
-		}
-	}
 
-	// -U2 --inter-hunk-context=0 produces smaller, more digestible hunks:
-	// 2 lines of context (instead of git's default 3), and no merging of
-	// nearby hunks. A 10-line file with two unrelated 1-line changes is
-	// rendered as two small hunks rather than one combined block.
-	rawDiff, err := gitOut("diff", "--no-color",
-		"-U2", "--inter-hunk-context=0",
-		base+"..."+branch)
+	// Per-file diffs (and the aggregate RawDiff) still go through
+	// `git diff` because we need the `-U2 --inter-hunk-context=0`
+	// flags — go-git's diff text doesn't expose context size.
+	// renderQuotedDiff parses the result by `+`/`-`/` ` sign; the
+	// exact unified-diff shape matters.
+	rawDiff, err := execRangeDiff(base, branch)
 	if err != nil {
 		return nil, fmt.Errorf("scope: %w", err)
 	}
@@ -130,8 +127,8 @@ func ScopeFor(branch, base string) (*Scope, error) {
 	return &Scope{
 		Branch:        branch,
 		Base:          base,
-		TipSHA:        tip,
-		BaseSHA:       baseSHA,
+		TipSHA:        tip.String(),
+		BaseSHA:       baseHash.String(),
 		Diff:          base + ".." + branch,
 		Commits:       commits,
 		Files:         files,
@@ -154,9 +151,7 @@ func (s *Scope) FilePatch(path string) string {
 	// every file (Scope.Files are root-relative). Empty patches let
 	// renderChanges skip the entire `## Changes in <path>` body and
 	// drop any anchored comments/marks/reads.
-	out, err := gitOut("diff", "--no-color",
-		"-U2", "--inter-hunk-context=0",
-		s.Base+".."+s.Branch, "--", ":(top)"+path)
+	out, err := execFileDiff(s.Base, s.Branch, path)
 	if err != nil {
 		return ""
 	}
@@ -173,7 +168,7 @@ func (s *Scope) CommitPatch(sha string) string {
 	if p, ok := s.CommitPatches[sha]; ok {
 		return p
 	}
-	out, err := gitOut("format-patch", "--stdout", sha+"^.."+sha)
+	out, err := execCommitPatchRange(sha)
 	if err != nil {
 		return ""
 	}
@@ -184,39 +179,30 @@ func (s *Scope) CommitPatch(sha string) string {
 	return out
 }
 
-// gitOut runs `git` with the given args and returns stdout (trailing newline trimmed).
-func gitOut(args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	out, err := cmd.Output()
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), strings.TrimSpace(string(ee.Stderr)))
-		}
-		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
-	}
-	return strings.TrimRight(string(out), "\n"), nil
-}
-
 var (
 	basePat   = regexp.MustCompile(`(?m)^Base:\s*(\S+)\s*$`)
 	mrSubjPat = regexp.MustCompile(`^\[Merge Request\]\s*(.*)$`)
 )
 
 func parseBaseFromBranch(branch string) string {
-	out, err := gitOut("log", "--format=%H", branch)
+	repo, err := git.Open("")
 	if err != nil {
 		return ""
 	}
-	for _, sha := range strings.Fields(out) {
-		msg, err := gitOut("log", "-1", "--format=%B", sha)
-		if err != nil {
-			continue
-		}
-		first := strings.SplitN(msg, "\n", 2)[0]
+	tip, err := repo.Resolve(branch)
+	if err != nil || tip == git.ZeroHash {
+		return ""
+	}
+	entries, err := repo.CommitsOnBranch(tip)
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		first := strings.SplitN(e.Message, "\n", 2)[0]
 		if !strings.HasPrefix(first, "[Merge Request]") {
 			continue
 		}
-		if m := basePat.FindStringSubmatch(msg); m != nil {
+		if m := basePat.FindStringSubmatch(e.Message); m != nil {
 			return m[1]
 		}
 		return "main"
@@ -225,16 +211,20 @@ func parseBaseFromBranch(branch string) string {
 }
 
 func findMRTitle(branch string) string {
-	out, err := gitOut("log", "--format=%H %s", branch)
+	repo, err := git.Open("")
 	if err != nil {
 		return ""
 	}
-	for _, line := range strings.Split(out, "\n") {
-		parts := strings.SplitN(line, " ", 2)
-		if len(parts) < 2 {
-			continue
-		}
-		if m := mrSubjPat.FindStringSubmatch(parts[1]); m != nil {
+	tip, err := repo.Resolve(branch)
+	if err != nil || tip == git.ZeroHash {
+		return ""
+	}
+	entries, err := repo.CommitsOnBranch(tip)
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if m := mrSubjPat.FindStringSubmatch(e.Subject); m != nil {
 			return m[1]
 		}
 	}

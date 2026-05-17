@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 
+	"gitflower/internal/git"
 	"gitflower/review"
 	"gitflower/tui"
 )
@@ -48,7 +48,12 @@ func cmdReview(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	reviewer, err := gitOutput("config", "user.email")
+	repo, err := git.Open("")
+	if err != nil {
+		fmt.Fprintf(stderr, "review: %v\n", err)
+		return 1
+	}
+	reviewer, err := repo.ConfigUserEmail()
 	if err != nil || reviewer == "" {
 		fmt.Fprintln(stderr, "review: git config user.email is unset")
 		return 1
@@ -65,8 +70,7 @@ func cmdReview(args []string, stdout, stderr io.Writer) int {
 	// Optional file mirror.
 	path := *out
 	if path != "" && !strings.HasPrefix(path, "/") {
-		root, _ := gitOutput("rev-parse", "--show-toplevel")
-		if root != "" {
+		if root := repo.Toplevel(); root != "" {
 			path = root + "/" + path
 		}
 	}
@@ -115,50 +119,53 @@ func cmdReview(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// printExitHint writes the "where did my review go" footer. The
-// review is on a git note; users without gitflower can still read
-// it with stock git + grep using the printed commands.
+// printExitHint writes the "where did my review go" footer. Two
+// commands: the live notes view (always reflects the latest edits)
+// and a frozen blob view (pinned to the exact version this session
+// just saved, immutable even if future edits move the notes ref
+// forward).
 func printExitHint(w io.Writer, notesRef, tipSHA, mirrorPath string) {
-	fmt.Fprintf(w, "\nreview saved → %s @ %s\n", notesRef, tipSHA[:12])
-	fmt.Fprintln(w, "\nView the full review:")
-	cmds := review.ViewCommands(notesRef, tipSHA)
-	fmt.Fprintf(w, "  %s\n", cmds[0])
-	fmt.Fprintln(w, "\nDrop reading/skip bookkeeping:")
-	fmt.Fprintf(w, "  %s\n", cmds[1])
-	fmt.Fprintln(w, "\nJust the reactions, with surrounding context:")
-	fmt.Fprintf(w, "  %s\n", cmds[2])
+	short := tipSHA
+	if len(short) > 12 {
+		short = short[:12]
+	}
+	fmt.Fprintf(w, "\nreview saved → %s @ %s\n", notesRef, short)
+
+	fmt.Fprintln(w, "\nView the current note (follows future edits):")
+	fmt.Fprintf(w, "  git notes --ref=%s show %s\n", notesRef, short)
+
+	// Pin to this exact version. The blob OID is what `git
+	// rev-parse <ref>:<sha>` returns — content-addressed, so it
+	// survives any future edit of the notes ref.
+	if blob, _ := review.NoteBlobSHA(notesRef, tipSHA); blob != "" {
+		fmt.Fprintln(w, "\nView this exact version (frozen blob):")
+		fmt.Fprintf(w, "  git show %s\n", blob)
+	}
 	if mirrorPath != "" {
 		fmt.Fprintf(w, "\nFile mirror: %s\n", mirrorPath)
 	}
 }
 
 func resolveBranch(arg string) (string, error) {
+	repo, err := git.Open("")
+	if err != nil {
+		return "", err
+	}
 	if arg != "" {
-		if _, err := gitOutput("rev-parse", "--verify", arg); err != nil {
+		h, err := repo.Resolve(arg)
+		if err != nil || h == git.ZeroHash {
 			return "", fmt.Errorf("branch %q not found", arg)
 		}
 		return arg, nil
 	}
-	b, err := gitOutput("rev-parse", "--abbrev-ref", "HEAD")
+	b, err := repo.HeadBranch()
 	if err != nil {
 		return "", err
 	}
-	if b == "HEAD" {
+	if b == "" {
 		return "", fmt.Errorf("HEAD is detached; pass an explicit <branch>")
 	}
 	return b, nil
-}
-
-func gitOutput(args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	out, err := cmd.Output()
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), strings.TrimSpace(string(ee.Stderr)))
-		}
-		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
-	}
-	return strings.TrimRight(string(out), "\n"), nil
 }
 
 func fileExists(p string) bool {

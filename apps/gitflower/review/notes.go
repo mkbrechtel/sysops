@@ -6,14 +6,17 @@
 // whichever ref the caller specifies). Same .review format as the
 // in-tree file path; just stored content-addressed in the object
 // store and reachable by commit SHA.
+//
+// Backed by internal/git (go-git) — no external git binary needed.
 
 package review
 
 import (
-	"bytes"
+	"errors"
 	"fmt"
-	"os/exec"
-	"strings"
+	"os"
+
+	"gitflower/internal/git"
 )
 
 // DefaultNotesRef is the conventional refs/notes/* ref used for
@@ -21,42 +24,38 @@ import (
 const DefaultNotesRef = "refs/notes/review"
 
 // ReadNote returns the note body for `sha` from the named notes ref,
-// or "" + nil if no note exists. Any other git failure surfaces as an
-// error.
+// or "" + nil if no note exists. Any other git failure surfaces as
+// an error.
 func ReadNote(ref, sha string) (string, error) {
 	if ref == "" {
 		ref = DefaultNotesRef
 	}
-	cmd := exec.Command("git", "notes", "--ref="+ref, "show", sha)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
+	repo, err := git.Open("")
 	if err != nil {
-		// "no note found" exits non-zero with a specific message;
-		// treat that as a clean miss.
-		if strings.Contains(stderr.String(), "no note found") ||
-			strings.Contains(stderr.String(), "No note found") {
+		return "", err
+	}
+	body, err := repo.NoteShow(ref, sha)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
 			return "", nil
 		}
-		return "", fmt.Errorf("git notes show: %v: %s", err, stderr.String())
+		return "", fmt.Errorf("git notes show: %w", err)
 	}
-	return stdout.String(), nil
+	return string(body), nil
 }
 
 // WriteNote stores `body` as the note for `sha` on the named notes
-// ref, overwriting any previous note. Uses `git notes add -f -F -` so
-// stdin carries the body verbatim (no -m escaping issues).
+// ref, overwriting any previous note.
 func WriteNote(ref, sha, body string) error {
 	if ref == "" {
 		ref = DefaultNotesRef
 	}
-	cmd := exec.Command("git", "notes", "--ref="+ref, "add", "-f", "-F", "-", sha)
-	cmd.Stdin = strings.NewReader(body)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git notes add: %v: %s", err, stderr.String())
+	repo, err := git.Open("")
+	if err != nil {
+		return err
+	}
+	if err := repo.NoteAdd(ref, sha, body); err != nil {
+		return fmt.Errorf("git notes add: %w", err)
 	}
 	return nil
 }
@@ -90,49 +89,65 @@ func LastReviewMergeSHA(branch string) (string, error) {
 	if branch == "" {
 		branch = "HEAD"
 	}
-	cmd := exec.Command("git", "log", "--merges", "--format=%H %s", branch)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("git log --merges: %v: %s", err, stderr.String())
+	repo, err := git.Open("")
+	if err != nil {
+		return "", err
 	}
-	for _, line := range strings.Split(stdout.String(), "\n") {
-		sp := strings.SplitN(line, " ", 2)
-		if len(sp) < 2 {
-			continue
-		}
-		if strings.HasPrefix(sp[1], "[Review]") {
-			return sp[0], nil
-		}
+	tip, err := repo.Resolve(branch)
+	if err != nil {
+		return "", fmt.Errorf("git resolve %s: %w", branch, err)
 	}
-	return "", nil
+	if tip == git.ZeroHash {
+		return "", nil
+	}
+	return repo.FindMergeWithSubjectPrefix(tip, "[Review]")
 }
 
 // ViewCommands returns shell snippets a reader can copy-paste to
-// read the review for `sha` on `ref` — three of them, in order of
-// increasing terseness:
-//
-//  1. raw — the full body, exactly as stored.
-//  2. quiet — same, minus Read/Skip events (which are TUI bookkeeping
-//     and rarely interesting when reading the prose).
-//  3. terse — just headings and reactions with the 3 diff lines that
-//     precede each, for "what was actually said and where".
-//
-// Used by the `gitflower review` exit hint and embedded in the
-// [Review] merge commit body so the same recipes survive in git
-// history without needing the tool to read them.
+// read the review for `sha` on the live notes ref.
 func ViewCommands(ref, sha string) []string {
 	short := sha
 	if len(short) > 12 {
 		short = short[:12]
 	}
-	prefix := fmt.Sprintf("git notes --ref=%s show %s", ref, short)
+	return viewCommandsFor(fmt.Sprintf("git notes --ref=%s show %s", ref, short))
+}
+
+// ArchiveViewCommands is the merge-commit-resident counterpart of
+// ViewCommands. It reads the note body straight out of the orphan
+// archive commit's tree (`git show <archive>:<sha>`), so the recipe
+// works long after the live notes ref has been pruned and on every
+// clone that has the merge commit — no `git notes` dependency.
+func ArchiveViewCommands(archiveSHA, sha string) []string {
+	return viewCommandsFor(fmt.Sprintf("git show %s:%s", archiveSHA, sha))
+}
+
+func viewCommandsFor(prefix string) []string {
 	return []string{
 		prefix,
 		prefix + ` | grep -v -E '^### (ReadStart|ReadEnd|SkipStart|SkipEnd) '`,
 		prefix + ` | grep -B3 -E '^(# |## (Sources|Verdicts|Changes in |Issue |Commit |File )|### (Comment|Question|Like|Dislike|Verdict))'`,
 	}
+}
+
+// NoteBlobSHA returns the OID of the blob currently holding the
+// note for `sha` on `ref` — i.e. the immutable object that, right
+// now, represents this review version. Pin recipes to it (with
+// `git show <blob>`) when you want a snapshot that won't drift as
+// further edits move the notes ref forward.
+func NoteBlobSHA(ref, sha string) (string, error) {
+	if ref == "" {
+		ref = DefaultNotesRef
+	}
+	repo, err := git.Open("")
+	if err != nil {
+		return "", err
+	}
+	blob, err := repo.NoteBlob(ref, sha)
+	if err != nil || blob == git.ZeroHash {
+		return "", nil
+	}
+	return blob.String(), nil
 }
 
 // NotesRefTip returns the OID that refs/notes/<ref> currently points
@@ -141,7 +156,13 @@ func NotesRefTip(ref string) (string, error) {
 	if ref == "" {
 		ref = DefaultNotesRef
 	}
-	cmd := exec.Command("git", "rev-parse", "--verify", "--quiet", ref)
-	out, _ := cmd.Output()
-	return strings.TrimSpace(string(out)), nil
+	repo, err := git.Open("")
+	if err != nil {
+		return "", err
+	}
+	tip, err := repo.NotesTip(ref)
+	if err != nil || tip == git.ZeroHash {
+		return "", nil
+	}
+	return tip.String(), nil
 }

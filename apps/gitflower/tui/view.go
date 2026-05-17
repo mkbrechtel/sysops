@@ -9,7 +9,6 @@ package tui
 
 import (
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 
@@ -264,8 +263,14 @@ func renderCommitDetail(m *model) string {
 		return styleDim.Render("(no commits)")
 	}
 	c := m.sess.Scope.Commits[idx]
-	out, _ := exec.Command("git", "show", "--no-color", c.SHA).Output()
-	return styleTitle.Render(c.Short+"  "+c.Subject) + "\n\n" + string(out)
+	// Use the format-patch body already cached on the commit (no
+	// need to shell out to `git show` again — same content, just
+	// mbox-style headers + the diff).
+	patch := c.Patch
+	if patch == "" {
+		patch = m.sess.Scope.CommitPatch(c.SHA)
+	}
+	return styleTitle.Render(c.Short+"  "+c.Subject) + "\n\n" + patch
 }
 
 func renderIssueDetail(m *model) string {
