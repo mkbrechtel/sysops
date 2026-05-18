@@ -37,7 +37,7 @@ The on-disk `.review` is the source of truth. Opening a file parses what's there
 
 **Sidebar Remark numbering.** Multiple `## Remark` subsections render as "Remark 1", "Remark 2", … in the sidebar for navigation. The on-disk heading stays bare `## Remark`; the numbers are positional, not stored.
 
-**Open-question lane.** A separate sidebar entry lists every `- Asked-by:` with no `- Answered-by:` under it, so questions don't get lost in long reviews. Drives the `ClarificationRequired` verdict state suggestion.
+**Open-question lane.** A separate sidebar entry lists every `- Question-asked-by:` with no `- Answer-given-by:` under it, so questions don't get lost in long reviews. Drives the `ClarificationRequired` verdict state suggestion.
 
 **Resolved-issue display.** `## Issue` subsections that carry a `- Resolved-by:` line render collapsed/dimmed in the sidebar. Removing the line re-opens the issue in the live view.
 
@@ -47,7 +47,7 @@ The on-disk `.review` is the source of truth. Opening a file parses what's there
 
 ### "Comment from the bottom" convenience
 
-A reviewer who has just finished reading a section is past its last `> ` line (the EOF marker), not back at the top where a section-anchored event lives. The TUI accepts a `Commented-by:` / `Asked-by:` / `Reacted-by:` event submitted from past the EOF marker and inserts it at the **top** of the section. On disk the result is byte-identical to writing it at the top; the bottom-of-section input is purely a UX shortcut.
+A reviewer who has just finished reading a section is past its last `> ` line (the EOF marker), not back at the top where a section-anchored event lives. The TUI accepts a `Commented-by:` / `Question-asked-by:` / `Reacted-by:` event submitted from past the EOF marker and inserts it at the **top** of the section. On disk the result is byte-identical to writing it at the top; the bottom-of-section input is purely a UX shortcut.
 
 ## Flags
 

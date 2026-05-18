@@ -112,7 +112,7 @@ At most one verdict per (Name, email) — submitting again replaces in place.
 `<state>` is one of:
 
 - `Open` — initial / "no verdict yet, still reading"
-- `ClarificationRequired` — "I'd give a verdict but I have unanswered questions blocking that". Distinct from `RequestedChanges`: the author hasn't been asked to do anything yet, they've been asked to *explain*. Naturally paired with one or more open `- Asked-by:` events elsewhere in the file.
+- `ClarificationRequired` — "I'd give a verdict but I have unanswered questions blocking that". Distinct from `RequestedChanges`: the author hasn't been asked to do anything yet, they've been asked to *explain*. Naturally paired with one or more open `- Question-asked-by:` events elsewhere in the file.
 - `RequestedChanges` — needs work before merge
 - `Approved` — good to merge
 - `Denied` — reject; this work should not land
@@ -143,7 +143,7 @@ The recipe is the source-of-truth pointer; a Note body is never rewritten — th
 
 `## Remark` H2 items hold free-form reviewer commentary that *doesn't need resolving* — the unstructured counterpart to Issues. Use one for each "thing I want to say but isn't a tracked work item": a short summary, pointers to related reviews, design context, anything that's reference rather than ask.
 
-Shape: H2 heading (no title, no `@ <recipe>` — Remarks are pure reviewer output), then one-space-indented paragraphs, then one or more `- Remarked-by: Name <email>` signature lines. Reviewer events (`- Commented-by:`, `- Reacted-by:`, `- Asked-by:`, `- Answered-by:`) can appear inside, same as in any other section.
+Shape: H2 heading (no title, no `@ <recipe>` — Remarks are pure reviewer output), then one-space-indented paragraphs, then one or more `- Remarked-by: Name <email>` signature lines. Reviewer events (`- Commented-by:`, `- Reacted-by:`, `- Question-asked-by:`, `- Answer-given-by:`) can appear inside, same as in any other section.
 
 ```
 ## Remark
@@ -370,7 +370,7 @@ Every reviewer action is a markdown-ish list item. Two different bullets so
 | Bullet | Shape | Used for |
 |---|---|---|
 | `*` | `* <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Range markers (no body) — `Read-by:` / `Skipped-by:`. |
-| `-` | `- <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Everything else: `Commented-by:`, `Asked-by:`, `Answered-by:`, `Reacted-by:`, `Flagged-by:`, `Verdict-reached-by:`, `Issued-by:`, `Remarked-by:`, `Resolved-by:`. Optional body indented two spaces below. |
+| `-` | `- <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Everything else: `Commented-by:`, `Question-asked-by:`, `Answer-given-by:`, `Reacted-by:`, `Flagged-by:`, `Verdict-reached-by:`, `Issued-by:`, `Remarked-by:`, `Resolved-by:`. Optional body indented two spaces below. |
 
 The body, when present, is **indented two spaces** so it nests under
 the list item. That indentation is what lets a comment contain its own
@@ -433,34 +433,34 @@ indentation level stays consistent.
 
 ### Questions
 
-Same shape as comments except the bullet says `Asked-by:`. An asked-by event is "I'd like an answer" — distinct from a commented-by which is "here's what I think".
+Same shape as comments except the bullet says `Question-asked-by:`. A question event is "I'd like an answer" — distinct from a comment which is "here's what I think".
 
 ```
-- Asked-by: Markus <markus@example.org>
+- Question-asked-by: Markus <markus@example.org>
   Why "revised"? Was there an earlier version that got squashed?
 ```
 
 ### Answers
 
-Every `Asked-by:` deserves an answer. An `Answered-by:` is a **nested list item inside the asked-by's body**, two extra spaces of indent (so four total). The blank line between question body and the nested `- Answered-by:` matters — without it the answer would parse as another inline list inside the question's prose rather than a child event:
+Every `Question-asked-by:` deserves an answer. An `Answer-given-by:` is a **nested list item inside the question's body**, two extra spaces of indent (so four total). The blank line between question body and the nested `- Answer-given-by:` matters — without it the answer would parse as another inline list inside the question's prose rather than a child event:
 
 ```
-- Asked-by: Markus <markus@example.org>
+- Question-asked-by: Markus <markus@example.org>
   Why "revised"? Was there an earlier version that got squashed?
 
-  - Answered-by: Author <author@example.org>
+  - Answer-given-by: Author <author@example.org>
     Yes — the first version landed `b.txt` only; the squash adds
     `b.test` in response to the question on the first round.
 ```
 
 Anchoring: the Answer attaches to its parent Question (which in turn
 is anchored to a line or section). Multiple Answers under one
-Question are fine — they're just consecutive nested `- Answered-by:`
+Question are fine — they're just consecutive nested `- Answer-given-by:`
 items.
 
-Structurally, `Answered-by:` is a normal `-` event — same `Name <email>` attribution, same indented-body shape, same optional ` @<RFC3339>` timestamp — it just lives one indent level deeper than the `Asked-by:` it answers.
+Structurally, `Answer-given-by:` is a normal `-` event — same `Name <email>` attribution, same indented-body shape, same optional ` @<RFC3339>` timestamp — it just lives one indent level deeper than the `Question-asked-by:` it answers.
 
-**A Question is *open* if it has no `- Answered-by:` under it.** Open questions are what the `ClarificationRequired` verdict state refers to. Adding any `- Answered-by:` (from any reviewer, not necessarily the one who'd block) closes the question. Re-opening means deleting the existing answer(s) and asking again — there is no explicit "unanswer" event.
+**A Question is *open* if it has no `- Answer-given-by:` under it.** Open questions are what the `ClarificationRequired` verdict state refers to. Adding any `- Answer-given-by:` (from any reviewer, not necessarily the one who'd block) closes the question. Re-opening means deleting the existing answer(s) and asking again — there is no explicit "unanswer" event.
 
 ### Reactions
 
@@ -477,7 +477,7 @@ anchor)**. The same author can stack different emojis at one anchor
 (`👍` and `🎉`), and re-submitting the same emoji replaces in place
 rather than appending a duplicate.
 
-Reactions can also be **nested under a Commented-by, Asked-by, or Answered-by** — same `- Reacted-by: …; <emoji>` shape, indented two extra spaces so it sits as a child of the parent event:
+Reactions can also be **nested under a Commented-by, Question-asked-by, or Answer-given-by** — same `- Reacted-by: …; <emoji>` shape, indented two extra spaces so it sits as a child of the parent event:
 
 ```
 - Commented-by: Alice <alice@example.com>
@@ -553,123 +553,8 @@ prose; no shift, no escape, no special casing.
 The writer never emits a non-indented `# ` or `## ` inside a
 user-content body.
 
-## File naming
+## Storage
 
-Default path: `reviews/<branch-slug>-<tip-short>.review`, e.g.
-`reviews/feature-eb2d95b.review`. There's no `from-` suffix any more
-because a `.review` can carry multiple `# Diff` sections.
+Default storage is the `refs/notes/reviews` git notes ref, keyed by the reviewed commit's SHA. A `.review` body lives as the note attached to its commit; readers and writers exchange content through `git notes --ref=reviews` rather than touching the working tree.
 
-The same content also lives in the `refs/notes/reviews` notes ref keyed by the reviewed commit's SHA; the on-disk file is an optional mirror.
-
-## Parser
-
-Line-oriented state machine. State: `section` (Review / Diff / Commit / RepoTree / Subfolder / unknown), `subsection` (Note / Remark / Issue / File / none — `Note`, `Remark`, and `Issue` only under `# Review`; `File` under `# Diff`, `# Commit`, `# Repo Tree`, and `# Subfolder`), `lastPatchLine`, `currentEvent`.
-
-H1/H2 headings always carry an `@ <git command>` tail; the parser
-captures both the title (between the leading `# ` and ` @ `) and
-the command (after ` @ `) for round-trip preservation.
-
-Keyword recognition is **case-insensitive**. The writer emits the canonical capitalised form (`Read-by:`, `Commented-by:`, …); the parser accepts any case (`read-by:`, `READ-BY:` both parse the same).
-
-A `.review` file contains **no unindented free prose**. Every column-0 line is one of: a heading (`# `, `## `, `### `), a `> ` quoted line, a meta line (`- Key: value`), a reviewer-event list item (`* <Keyword>-by:` / `- <Keyword>-by:`), or a blank line. Anything else is a parser error. Body text only exists indented — one space under a `## Issue`/`## Remark` description block, two spaces under a `-` event — or inside a `> > ` nested blockquote (commit message). Keeping the lexer space this small lets a grep-and-awk reader handle the format with no real parser.
-
-| Line shape | Action |
-|---|---|
-| `# <Title>` | Close any open event/subsection. Switch section. |
-| `## <Title>` | Close any open event. Switch subsection. |
-| `> <text>` | Close any open event. Record `lastPatchLine`. |
-| `* <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Range marker event (`Read-by:` / `Skipped-by:`, with `; begin` or `; end` in the args slot). Anchor to `lastPatchLine`. No body. |
-| `- <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Open a `Commented-by:` / `Asked-by:` / `Answered-by:` / `Reacted-by:` / `Flagged-by:` (bot/agent flag, see *Flags*) / `Verdict-reached-by:` / `Issued-by:` (issue signature) / `Remarked-by:` (remark signature) / `Resolved-by:` (issue-close marker). Body is subsequent two-space-indented lines until the next non-indented line. `Issued-by:`, `Remarked-by:`, `Reacted-by:`, and `Resolved-by:` carry no body. |
-| `<one-space-indented text>` (under `## Issue` / `## Remark`) | Append to the subsection's description block (with the leading space stripped). Block ends at the next line-block. |
-| `<two-space-indented text>` (under a reviewer-action list item) | Append to that action's body (with the leading two spaces stripped). Block ends at the next line-block. |
-| Anything else at column 0 | Parser error. The writer never emits unindented free prose. |
-
-## Recovering patches
-
-```bash
-# The reproduction command sits on every heading, so the easiest
-# "recovery" is to just run it:
-grep -E '^(# |## ).* @ git ' file.review
-# → copy-paste the part after `@` to get any artifact verbatim.
-
-# Or pull a section's quoted body straight out of the file:
-
-# One file's diff (inside a `# Diff` or `# Commit` section)
-awk '/^## File "b\.txt" modified /{p=1; next} /^## /{p=0} p' file.review \
-  | sed -E '/^> ?/!d; s/^> [0-9 ]*[+-: ]//; s/^> ?//'
-
-# One commit's headers + message (the H1 body, no per-file diffs)
-awk '/^# Commit dd56c2ea /{p=1; next} /^(# |## )/{p=0} p' file.review \
-  | sed -E '/^> ?/!d; s/^> ?//'
-
-# All comments by author
-grep -A2 '^- Commented-by: Alice' file.review
-```
-
-## Multi-reviewer
-
-One `.review` file (or one note on `refs/notes/reviews`) per reviewed
-commit, shared across reviewers. Each event carries
-`by <Name> <<email>>` attribution so events from different people
-interleave naturally. Concurrent editing is not solved by the format —
-coordinate by branch + lock conventions externally.
-
-## Non-goals
-
-- **Not a patching surface.** The patches inside ARE git patches and
-  recover cleanly per-commit, but the `.review` file is for tracking a
-  single review accurately in one file. Apply by recovering per-commit
-  `.patch` files first.
-- **Not a binary format.**
-- **Not a forge replacement.** No notifications, permissions, rate
-  limiting.
-
-## References
-
-- [`gitflower-review.md`](./gitflower-review.md) — the reference tool that reads and writes this format.
-- Linux kernel patch review on `lkml` (the mental model this format borrows from).
-- The in-tree-review pattern (`patterns/approaches/in-tree-review.md`).
-- The git notes layout (`refs/notes/reviews`) where this same content lives content-addressed for the active-review case.
-
-## Considerations
-
-Rationale, rejected paths, and "why not" notes. Deletable as a
-whole once the spec settles.
-
-### Deletion uses *Deletion body*, not *Object body*
-
-A `## File "<path>" deleted` section with `git show <oldblob>` as its recipe could just as easily carry the *Object body* shape. We chose *Deletion body* instead because plain object content sitting next to a `## File "<path>" modified` reads as "this file still exists", and the `-` markers make "this is gone" obvious at a glance.
-
-### Notes are line-numbered for commentability
-
-A note's content is the artefact under review (linter output,
-CI trace, etc.), the same way a file's lines or a diff's hunks
-are. Quoting line-by-line lets a reviewer pin a comment to "this
-warning" rather than "somewhere in the note".
-
-### Verdict-state set is intentionally minimal
-
-`Open` / `ClarificationRequired` / `RequestedChanges` / `Approved` /
-`Denied` covers the common shapes without committing to any
-specific PR workflow. Github-style (`Commented`, `Dismissed`)
-and granular ones (`Nit`, `Blocked`) were considered. The set
-can grow without breaking older readers — unknown states are
-preserved verbatim.
-
-### Heading-shift trick deliberately not used
-
-An earlier draft shifted user-authored `# Foo` headings by +3
-levels on write (so they became `#### Foo` on disk) to avoid
-colliding with structural H1/H2. Dropped in favour of the
-"all user content is indented" invariant: indented `# Foo` is
-just `  # Foo` on disk, which our column-0-only parser ignores
-for section detection. No shift, no escape, no round-trip
-ambiguity.
-
-### Version 0 advisory
-
-Don't build third-party tooling against v0 yet — or do, but pin
-to a specific spec commit and expect to update. When v1 ships,
-the v0→v1 transition strategy will be defined; the most likely
-shape is a one-shot migration command provided by the reference
-implementation. Versions ≥ 1 will follow strict semver.
+The on-disk `.review` file is optional and only relevant when a reviewer wants to commit the review into a tree alongside the code — for archival, for tooling that doesn't speak git notes, or to ship a review as part of a release. The conventional path in that case is `reviews/<branch-slug>-<tip-short>.review`, e.g. `reviews/feature-eb2d95b.review`. A single `.review` can carry multiple `# Diff` sections, so the filename names the review, not any one diff inside it.
