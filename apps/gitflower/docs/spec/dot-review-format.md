@@ -3,11 +3,11 @@
 #SPDX-License-Identifier: EUPL-1.2
 ---
 
-# `.review` — patch-quoting markdown-ish for in-tree code reviews
+# `.review` *(dot-review)* — File format for git based code reviews!
 
-A single-file format for one code review. Markdown-ish, with a fixed chapter structure: H1 = section (commit/diff/tree), H2 = sub-section (content/diff), list items = reviewer events. Patch / file content is `> `-quoted verbatim from git so the review reads like an annotated diff.
+A single-file format for one code review. Loosley based on Markdown, with a fixed chapter structure: H1 = section (commit/diff/tree), H2 = sub-section (content/diff), list items = reviewer events. Patch / file content is `> `-quoted verbatim from git so the review reads like an annotated diff.
 
-This file specifies the on-disk format. The reference reader/writer is gitflower; its commands, TUI, and notes-ref integration are documented separately in [`./gitflower-review.md`](./gitflower-review.md).
+This file specifies the on-disk format. The reference reader/writer is gitfßlower; its commands, TUI, and notes-ref integration are documented separately in [`./gitflower-review.md`](./gitflower-review.md).
 
 ## Goal
 
