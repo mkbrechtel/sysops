@@ -370,7 +370,7 @@ Every reviewer action is a markdown-ish list item. Two different bullets so
 | Bullet | Shape | Used for |
 |---|---|---|
 | `*` | `* <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Range markers (no body) — `Read-by:` / `Skipped-by:`. |
-| `-` | `- <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Everything else: `Commented-by:`, `Asked-by:`, `Answered-by:`, `Reacted-by:`, `Verdict-reached-by:`, `Issued-by:`, `Remarked-by:`, `Resolved-by:`. Optional body indented two spaces below. |
+| `-` | `- <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Everything else: `Commented-by:`, `Asked-by:`, `Answered-by:`, `Reacted-by:`, `Flagged-by:`, `Verdict-reached-by:`, `Issued-by:`, `Remarked-by:`, `Resolved-by:`. Optional body indented two spaces below. |
 
 The body, when present, is **indented two spaces** so it nests under
 the list item. That indentation is what lets a comment contain its own
@@ -492,6 +492,25 @@ prose for it. The "once per emoji per author" rule applies at the
 nested level too: Alice can stick 👍 and 🎉 on Bob's comment but
 only one 👍.
 
+### Flags
+
+```
+- Flagged-by: ScanBot <bot@example.org>; permissions
+  File is world-writable (mode 0666); usually a packaging mistake.
+
+- Flagged-by: ScanBot <bot@example.org>; long-line
+  Line 142 is 14000 characters wide — likely minified or generated.
+
+- Flagged-by: UnicodeScanner <ucbot@example.org>; suspicious-unicode
+  Mixed bidirectional override characters detected (U+202E U+202D); possible homograph or Trojan-Source attack.
+```
+
+Automated annotations from bots and agents — file-permission anomalies, overlong lines, suspicious unicode, anything a scanner wants to surface to the reviewer. The `; <category>` slot carries a short kebab-cased label so readers can filter or summarise; the body explains the finding.
+
+Bots use the same `Name <email>` attribution shape as humans, so flags interleave with human events naturally.
+
+The format defines only the event shape; **what to flag, when to scan, and how to render the flags is out of scope for this spec** and lives with the scanner and the reading tool. New categories are added by picking a new `; <category>` string — readers preserve unknown categories verbatim per the unknown-line rule.
+
 ### Verdict-reached-by
 
 Defined under `# Review` § *Verdict-reached-by lines*. Only valid there.
@@ -560,7 +579,7 @@ A `.review` file contains **no unindented free prose**. Every column-0 line is o
 | `## <Title>` | Close any open event. Switch subsection. |
 | `> <text>` | Close any open event. Record `lastPatchLine`. |
 | `* <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Range marker event (`Read-by:` / `Skipped-by:`, with `; begin` or `; end` in the args slot). Anchor to `lastPatchLine`. No body. |
-| `- <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Open a `Commented-by:` / `Asked-by:` / `Answered-by:` / `Reacted-by:` / `Verdict-reached-by:` / `Issued-by:` (issue signature) / `Remarked-by:` (remark signature) / `Resolved-by:` (issue-close marker). Body is subsequent two-space-indented lines until the next non-indented line. `Issued-by:`, `Remarked-by:`, `Reacted-by:`, and `Resolved-by:` carry no body. |
+| `- <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Open a `Commented-by:` / `Asked-by:` / `Answered-by:` / `Reacted-by:` / `Flagged-by:` (bot/agent flag, see *Flags*) / `Verdict-reached-by:` / `Issued-by:` (issue signature) / `Remarked-by:` (remark signature) / `Resolved-by:` (issue-close marker). Body is subsequent two-space-indented lines until the next non-indented line. `Issued-by:`, `Remarked-by:`, `Reacted-by:`, and `Resolved-by:` carry no body. |
 | `<one-space-indented text>` (under `## Issue` / `## Remark`) | Append to the subsection's description block (with the leading space stripped). Block ends at the next line-block. |
 | `<two-space-indented text>` (under a reviewer-action list item) | Append to that action's body (with the leading two spaces stripped). Block ends at the next line-block. |
 | Anything else at column 0 | Parser error. The writer never emits unindented free prose. |
