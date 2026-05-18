@@ -5,57 +5,120 @@
 
 # `gitflower review` — TUI and CLI for `.review` files
 
-`gitflower review` is gitflower's front-end for the `.review` format. It reads and writes `.review` bodies on per-branch notes refs (`refs/notes/reviews/<branch>`, optionally mirroring to an on-disk file), runs a bubbletea TUI for interactive reviewing, and exposes CLI sub-commands for scripted use.
+`gitflower review` is gitflower's front-end for the `.review` format. It scaffolds a review on the current branch, runs a bubbletea TUI for interactive reading and commenting, and persists the result to a per-branch git notes ref (`refs/notes/reviews/<branch>`, with an optional on-disk mirror). The on-disk format is documented separately in [`dot-review-format.md`](./dot-review-format.md); this file specifies the tool — invocation, flags, TUI behaviour, persistence, and how the tool's output maps to the format spec. Where the two disagree, the format spec is authoritative and the tool gets rewritten to match.
 
-The on-disk format itself is documented separately in [`dot-review-format.md`](./dot-review-format.md). This file specifies the tool — the commands, the TUI behaviour, and the flags. Anything reading or writing `.review` bodies should follow the format spec regardless of tool.
+## Invocation
 
-## Commands
+`gitflower review [--branch <branch>]` scaffolds a new `.review` for `<branch>` (defaulting to the current branch) and opens the TUI. If a `.review` already exists on the notes ref for the reviewed tip commit it is loaded as-is — re-running is non-destructive.
 
-`gitflower review` is a convenience wrapper that runs `begin` + `diff <current-branch-spec>` + `commits <current-branch-spec>` on first open, then launches the TUI. The sub-commands below let scripts compose the same behaviour piecewise.
+**The default scaffold covers everything that changed since the last review.** The base ref is the tip of the most recent `[Review]` merge on the branch (falling back to `main`), and the scaffold emits the header block (`dot-review-File-Version: 0`, `dot-review-Intro:`, `dot-review-Docs-Link:`, closing `---`), the `# Review` heading with its meta lines (`SPDX-FileCopyrightText`, `SPDX-License-Identifier`, `Review-Head-Commit`, `Review-Branch`, `Created-By`), one `# Diff <base>..<tip> @ git diff <base>..<tip>` section spanning the full delta, and one `# Commit <sha> @ git show <sha>` section per commit in `base..tip`. The reviewer can add more sections on top (`# Repo Tree`, additional `# Commit` sections for earlier commits, `## File` entries via the Tree sidebar, …) but the default already names every artefact that changed since the last in-history review.
 
-**`gitflower review begin`** creates an empty `.review` on HEAD: the header block plus the bare `# Review` heading and a few meta lines (`SPDX-FileCopyrightText`, `SPDX-License-Identifier`, `Review-Head-Commit`, `Reviewed-Branch`, `Created-By`). If a non-`.review` body already exists on the notes ref for this commit, it's imported as a `## Note @ git notes --ref=… show …` subsection so the prior content is preserved.
+`--empty-review` opts out of the change-covering scaffold and writes only the header block plus the bare `# Review` heading with its meta lines. Useful when the reviewer wants to assemble the review piecewise from the TUI's Tree / Commits sidebars rather than start from the full diff.
 
-**`gitflower review diff <diffspec>`** appends a `# Diff <diffspec> @ git diff <oldcommit>..<newcommit>` section, with one per-file subsection (`## File … modified` / `## File … created` / `## File … deleted` / `## File … moved`) under it.
+With `--no-tui` the scaffold is written and the process exits with a "where your review went" footer: the live notes-ref pointer (follows future edits), the immutable blob SHA snapshot for verbatim recovery, and the file mirror path if `-o` was set.
 
-**`gitflower review commit <sha>…`** appends one `# Commit <sha> @ git show <sha>` section per SHA, in command-line order.
+## Flags
 
-**`gitflower review commits <diffspec>`** walks the spec (typically `base..tip`) and appends a `# Commit` section per commit in oldest-first order.
+- `--base <ref>` — base ref for the review's diff range. Defaults to the tip of the most recent `[Review]` merge on the current branch, falling back to `main`.
+- `--notes-ref <ref>` — notes ref to read and write. Defaults to `refs/notes/reviews/<branch>`. Mostly a testing knob; production reviewers stick with the default so the gate hook and other tools find content where they expect it.
+- `-o <path>` — mirror the `.review` body to a file at `<path>` in addition to the notes ref. The notes ref stays source of truth; the file is rewritten on every save.
+- `--no-tui` — scaffold the `.review` and exit without launching the TUI.
+- `--empty-review` — skip the change-covering scaffold. Writes only the header block and the bare `# Review` heading; the reviewer adds sections from the TUI.
+- `--read-rate <lines/sec>` — auto-read pacing for the TUI (default `10`). Lines that remain visible without scroll for `(visible-lines / read-rate)` seconds flip from unread to read automatically.
+- `--with-timestamps` — opt in to per-event timestamps. Off by default for privacy reasons. When on, every reviewer event grows a ` @<RFC3339>` slot between the email and the optional `; <args>`.
 
-**`gitflower review files <path>…`** appends `## File "<path>"` subsections (full repo-root-relative paths) under the matching `# Repo Tree` or `# Subfolder` section, creating the tree section if it doesn't exist yet. The commit defaults to HEAD; `--commit <sha>` pins a specific commit.
+## Subcommands
 
-**`gitflower review edit`** opens the current `.review` body in `$EDITOR`. Useful when the TUI's input is too clunky or the reviewer wants to batch-edit.
+### `gitflower review merge` (build tag `with_review_merge`)
 
-**`gitflower review merge`** attaches the review to the branch history. Merges the tip of `refs/notes/reviews/<branch>` into HEAD with `-s ours` — the working tree stays clean, the per-branch notes chain hangs off the merge's second parent. The merge commit's subject is prefixed `[Review]`; the body carries a verdict-count summary, a `git show <notes-sha>` recipe, and the `Verdict-reached-by:` trailers from the `.review` verbatim. See *Attaching to history* in `dot-review-format.md` for the on-disk shape. Gated behind the `with_review_merge` build tag.
+Attaches the per-branch notes-ref chain to the branch history. Merges `refs/notes/reviews/<branch>` into HEAD with `-s ours` so the working tree stays clean; the notes-commit chain hangs off the merge's second parent for `git log <merge>^2` and `git show <merge>^2`. The merge commit's subject is prefixed `[Review]`, and its body carries a verdict-count summary, a literal `git show <notes-sha>` recipe, and the `Verdict-reached-by:` trailers from the `.review` verbatim. Optional `--include-file` lets the entire `.review` body land in the tree at `reviews/<branch>-<tip-short>.review` instead of staying notes-only. See *Attaching to history* in the format spec for the exact merge-commit shape.
 
-## TUI behaviour
+Compiled out by default; rebuild with `go build -tags with_review_merge`.
 
-The on-disk `.review` is the source of truth. Opening a file parses what's there; there is no implicit re-running of `git diff` or `git log`. Every keystroke that mutates state writes back through the same notes-ref path the CLI uses.
+## TUI
 
-**Source-pane / peek-pane layout.** A sidebar lists the H1 sections; selecting one opens its body in the main pane. Selecting an `## Issue` / `## Remark` / `## Note` shows that subsection's body.
+The on-disk `.review` is the source of truth. Opening parses what's there; nothing implicit re-runs `git diff` or `git log`. Every mutation re-renders the in-memory session and writes back through the same notes-ref path — debounced at two seconds, plus an immediate write on explicit save.
 
-**`# Review` right pane.** When the cursor is on the `# Review` heading, the right pane lists the meta lines and any unknown keys verbatim so the reviewer can sanity-check what was recorded.
+### Modes
+
+**Tree mode.** Sidebar focused; one section selected; a peek pane shows the section's content. Used for navigating between sections and opening files, issues, or commits.
+
+**Diff / file mode.** Entered by drilling into a file or commit. The cursor locks to one line in the main pane and reviewer events anchor to that line. `←` / `h` returns to tree mode.
+
+### Sidebar
+
+The sidebar surfaces the format-spec sections under these headings:
+
+| Sidebar entry | Surfaces |
+|---|---|
+| **Sources** | `# Review` meta lines (`Review-Head-Commit`, `Review-Branch`, `Created-By`, …) and an unknown-keys panel — read-only. |
+| **Verdicts** | The audit log of `- Verdict-reached-by:` events under `# Review`. |
+| **General Issues** | `## Issue` subsections under `# Review`. |
+| **Changes** | The `# Diff` section, folder-tree-grouped; drilling opens the file's `## File "<path>" modified` / `created` / `deleted` / `moved` subsection. |
+| **Commits** | The `# Commit` sections in oldest-first order. |
+| **Tree** | The `# Repo Tree` / `# Subfolder` sections at the tip SHA, expandable. |
+| **File Review** | The `## File "<path>" @ git show <sha>` subsections the reviewer has opened in object-view mode. |
+
+Sidebar keys: `j` / `k` move within a section, `Tab` cycles sections, `→` / `l` / `Enter` drill into the selected item, `i` opens a new-issue overlay (on General Issues), `e` edits the selected item, `q` quits.
+
+### Source / diff / file pane keys
+
+In diff or file mode the cursor sits on a single line; comments and markers anchor to it.
+
+- `j` / `k` — move cursor by one line.
+- `Space` — *walk*. The viewport auto-advances at `--read-rate` line/sec, marking traversed lines read.
+- `c` or `Enter` — open the comment edit overlay anchored to the current line.
+- `!` or `?` — open the question edit overlay.
+- `a` / `g` — react Like (`Reacted-by: …; 👍`). `b` reacts Dislike (`; 👎`).
+- `u` — mark the current line unread.
+- `w` — toggle line-wrap.
+- `>` / `<` — cycle the reviewer's `Verdict-reached-by:` state.
+- `n` / `N` — cycle to the next / previous event anchored at or near the current line.
+- `d` — delete the event under the cursor.
+- `s` — save now. Auto-save is debounced two seconds; manual save mostly exists for tests.
+- `←` / `h` — return to tree mode.
+
+### Event entry overlays
+
+Single-line overlay for `Reacted-by:` (no body). Multi-line overlays with a text area for `Commented-by:`, `Question-asked-by:`, and `Verdict-reached-by:` (verdict pre-populates with the reviewer's current state). The `## Issue` overlay has a title field plus a body area; `Tab` switches focus between them. Submit with `Alt+Enter` or `Ctrl+S`; cancel with `Esc`.
+
+Answers to questions are entered the same way as comments, anchored to the parent `- Question-asked-by:` event so they render as nested `- Answer-given-by:` items under it.
+
+### Read tracking
+
+Lines start unread, rendered with a stronger colour. They flip to read in three ways:
+
+1. **Walking with `Space`** auto-scrolls at `--read-rate` and marks each line read as it passes.
+2. **Dwell** — lines visible without scroll for `(visible-lines / read-rate)` seconds flip automatically.
+3. **Manual** — `u` toggles the current line back to unread.
+
+On save, contiguous read spans coalesce into range-marker events on the surrounding `> ` quoted body and emit as paired `* Read-by: Name <email>; begin` and `* Read-by: …; end` items anchored to the first and last covered patch lines. The `*` bullet distinguishes range markers from the `-` bullet used by every other reviewer event. `* Skipped-by: …; begin` / `; end` works the same way for ranges the reviewer explicitly skipped.
+
+### "Comment from the bottom"
+
+A reviewer who has just finished reading a section is past its last `> ` line (the EOF marker), not back at the top where a section-anchored event lives. The TUI accepts a `Commented-by:` / `Question-asked-by:` / `Reacted-by:` event submitted from past the EOF marker and inserts it at the **top** of the section. On disk the result is byte-identical to writing at the top — the bottom-of-section input is purely a UX shortcut.
+
+### Sidebar UI details
 
 **Sidebar Remark numbering.** Multiple `## Remark` subsections render as "Remark 1", "Remark 2", … in the sidebar for navigation. The on-disk heading stays bare `## Remark`; the numbers are positional, not stored.
 
-**Open-question lane.** A separate sidebar entry lists every `- Question-asked-by:` with no `- Answer-given-by:` under it, so questions don't get lost in long reviews. Drives the `ClarificationRequired` verdict state suggestion.
+**Open-question lane.** A separate sidebar entry lists every `- Question-asked-by:` with no `- Answer-given-by:` under it, so questions don't get lost in long reviews. Drives the `ClarificationRequired` verdict-state suggestion.
 
 **Resolved-issue display.** `## Issue` subsections that carry a `- Resolved-by:` line render collapsed/dimmed in the sidebar. Removing the line re-opens the issue in the live view.
 
 **Duplicate-issue flag.** Two `## Issue` subsections with the same title get a warning marker in the sidebar; the writer doesn't enforce uniqueness, but the TUI surfaces dupes so reviewers can dedupe.
 
-**Auto-import on first open.** If `gitflower review begin` has never run for the current HEAD and the notes ref already has a non-`.review` body, the TUI imports it (same shape as `review begin` does — see *Notes-ref interop* below).
+**`# Review` peek pane.** When the cursor is on the `# Review` heading, the right pane lists the meta lines and any unknown keys verbatim so the reviewer can sanity-check what was recorded.
 
-### "Comment from the bottom" convenience
+## Persistence
 
-A reviewer who has just finished reading a section is past its last `> ` line (the EOF marker), not back at the top where a section-anchored event lives. The TUI accepts a `Commented-by:` / `Question-asked-by:` / `Reacted-by:` event submitted from past the EOF marker and inserts it at the **top** of the section. On disk the result is byte-identical to writing it at the top; the bottom-of-section input is purely a UX shortcut.
+**Notes ref.** Default `refs/notes/reviews/<branch>`. The notes ref is the source of truth — reads prefer it over any on-disk mirror.
 
-## Flags
+**File mirror (`-o`).** Optional. The mirror is rewritten on every save; reads still come from the note. Useful for diffing two reviews on disk or for tooling that doesn't speak git notes.
 
-`gitflower review --with-timestamps` turns on per-event timestamps. The format spec describes the on-disk syntax (` @<RFC3339>` between email and `; <args>`); this flag is what makes the writer emit them. Off by default for privacy reasons.
+**Save semantics.** Full rewrite, not append-only. Every mutation (event added, range coalesced, verdict cycled, …) re-renders the in-memory session and writes to the notes ref (plus the file mirror if set). Auto-save debounces at two seconds; `s` saves immediately. Writes go through go-git's notes machinery.
 
-`gitflower review -o <path>` mirrors the current `.review` body to a file at `<path>` in addition to writing the notes ref. Useful for diffing two reviews on disk or for tooling that doesn't read notes refs. The notes ref stays the source of truth even with `-o` set.
-
-`gitflower review --notes-ref <ref>` reads and writes a different notes ref than the default `refs/notes/reviews/<current-branch>`. Mostly for testing — production reviewers stick with the default so the gate hook and other tools find content where they expect it.
+**Auto-import on first open.** If the notes ref already has a non-`.review` body (kernel-style sign-offs, CI bot output, freeform notes), the TUI imports it into the new `.review` as a `## Note @ git notes --ref=… show …` subsection under `# Review`. Kernel-style trailers stay grep-able in the imported body so the planned `review-gate` hook keeps recognising sign-offs after the conversion.
 
 ## Notes-ref interop
 
@@ -63,13 +126,11 @@ The `refs/notes/reviews/*` namespace is shared territory, not gitflower-exclusiv
 
 The `.review` parser ignores notes that don't begin with `dot-review-File-Version:`. The writer never overwrites them on save.
 
-When `gitflower review begin` runs on a commit whose notes ref already has a non-`.review` body, that body is imported into the new `.review` as a `## Note @ git notes --ref=… show …` subsection under `# Review`. Kernel-style trailers stay grep-able in the imported body, so the planned `review-gate` hook keeps recognising sign-offs after the conversion.
-
 ### Planned `review-gate` hook
 
 A future `gitflower review-gate` hook will block merges unless a commit has been reviewed. It scans a commit's notes-ref body for approval signals in priority order:
 
-1. **`.review` format** — a parseable body with at least one `* Verdict-reached-by: …; Approved` counts as approved.
+1. **`.review` format** — a parseable body with at least one `- Verdict-reached-by: …; Approved` counts as approved.
 2. **Kernel-style trailers** — any line matching `^(Reviewed-By|Acked-By|Signed-off-by): <Name> <<email>>` counts as a sign-off.
 3. **No recognised signal** — the body exists but doesn't approve.
 
@@ -89,3 +150,11 @@ The natural moment to leave a wrap-up comment is right after finishing reading a
 ### Non-`.review` notes interop philosophy
 
 Keeping the format opt-in: teams already using `git notes` for review records get the future `review-gate` hook for free, and teams that want the full `.review` machinery get richer state on top of the same notes ref. The hook itself is a future feature — this spec only declares that the notes ref is shared territory.
+
+### Scaffolding subcommands deliberately not split out
+
+An earlier sketch had `gitflower review begin` / `diff` / `commit` / `commits` / `files` / `edit` as separately invocable scaffolding sub-commands so scripts could compose a `.review` piecewise. The current tool collapses all of this into the top-level invocation: the scaffold runs implicitly on first open, mutations happen through the TUI, and the on-disk format itself is the integration surface for any other tool that wants to read or extend a `.review`. The decomposed sub-commands can be added later if scripted use proves out; for now, fewer commands is fewer commands to learn.
+
+### Implementation lag
+
+The current Go implementation (`apps/gitflower/review/`, `apps/gitflower/tui/`) was written against an earlier draft of the format spec and does not yet match this document. Notable drift: events emit as `### Comment (From: …)` H3 headings instead of `- Commented-by: …` list items; section and per-file headings lack the `@ git …` reproduction recipe; the header block is missing; range markers emit as paired `### ReadStart` / `### ReadEnd` H3s instead of `* Read-by: …; begin` / `; end` list items; the default notes ref is `refs/notes/review` (singular, non-branched). The spec here describes the *target* behaviour; rewriting Parse and Render to match is tracked separately.

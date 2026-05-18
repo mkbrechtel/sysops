@@ -20,8 +20,10 @@ gitflower review --no-tui feature                     # write the .review and ex
 gitflower review --base main --read-delay 500ms feature
 ```
 
-See `issues/dot-review.feature.md` (in the parent repo) for the on-disk
-file format and `apps/gitflower/tui/` for the TUI internals.
+See [`docs/spec/dot-review-format.md`](./docs/spec/dot-review-format.md)
+for the on-disk file format, [`docs/spec/gitflower-review.md`](./docs/spec/gitflower-review.md)
+for the tool spec (commands, TUI, flags, notes-ref interop), and
+`tui/` for the TUI internals.
 
 ---
 
