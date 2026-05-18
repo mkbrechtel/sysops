@@ -5,7 +5,7 @@
 
 # `gitflower review` — TUI and CLI for `.review` files
 
-`gitflower review` is gitflower's front-end for the `.review` format. It scaffolds a review on the current branch, runs a bubbletea TUI for interactive reading and commenting, and persists the result to a per-branch git notes ref (`refs/notes/reviews/<branch>`, with an optional on-disk mirror). The on-disk format is documented separately in [`dot-review-format.md`](./dot-review-format.md); this file specifies the tool — invocation, flags, TUI behaviour, persistence, and how the tool's output maps to the format spec. Where the two disagree, the format spec is authoritative and the tool gets rewritten to match.
+`gitflower review` is gitflower's front-end for the `.review` format. It scaffolds a review on the current branch, runs a bubbletea TUI for interactive reading and commenting, and persists the result to the shared `refs/notes/reviews` git notes ref (keyed by the reviewed commit's SHA, with an optional on-disk mirror). The on-disk format is documented separately in [`dot-review-format.md`](./dot-review-format.md); this file specifies the tool — invocation, flags, TUI behaviour, persistence, and how the tool's output maps to the format spec. Where the two disagree, the format spec is authoritative and the tool gets rewritten to match.
 
 ## Invocation
 
@@ -20,7 +20,7 @@ With `--no-tui` the scaffold is written and the process exits with a "where your
 ## Flags
 
 - `--base <ref>` — base ref for the review's diff range. Defaults to the tip of the most recent `[Review]` merge on the current branch, falling back to `main`.
-- `--notes-ref <ref>` — notes ref to read and write. Defaults to `refs/notes/reviews/<branch>`. Mostly a testing knob; production reviewers stick with the default so the gate hook and other tools find content where they expect it.
+- `--notes-ref <ref>` — notes ref to read and write. Defaults to `refs/notes/reviews`. Mostly a testing knob; production reviewers stick with the default so the gate hook and other tools find content where they expect it.
 - `-o <path>` — mirror the `.review` body to a file at `<path>` in addition to the notes ref. The notes ref stays source of truth; the file is rewritten on every save.
 - `--no-tui` — scaffold the `.review` and exit without launching the TUI.
 - `--empty-review` — skip the change-covering scaffold. Writes only the header block and the bare `# Review` heading; the reviewer adds sections from the TUI.
@@ -31,7 +31,9 @@ With `--no-tui` the scaffold is written and the process exits with a "where your
 
 ### `gitflower review merge` (build tag `with_review_merge`)
 
-Attaches the per-branch notes-ref chain to the branch history. Merges `refs/notes/reviews/<branch>` into HEAD with `-s ours` so the working tree stays clean; the notes-commit chain hangs off the merge's second parent for `git log <merge>^2` and `git show <merge>^2`. The merge commit's subject is prefixed `[Review]`, and its body carries a verdict-count summary, a literal `git show <notes-sha>` recipe, and the `Verdict-reached-by:` trailers from the `.review` verbatim. Optional `--include-file` lets the entire `.review` body land in the tree at `reviews/<branch>-<tip-short>.review` instead of staying notes-only. See *Attaching to history* in the format spec for the exact merge-commit shape.
+Attaches the review to the branch history with a merge commit. The merge commit's subject is prefixed `[Review]`, and its body carries a verdict-count summary, a literal `git show <notes-sha>` recipe pointing at the notes-commit that holds the `.review` body, and the `Verdict-reached-by:` trailers copied verbatim. Optional `--include-review-in-tree` lets the entire `.review` body land in the tree at `reviews/<branch>-<tip-short>.review` instead of staying notes-only.
+
+The exact mechanism by which the merge brings the notes-ref content in as the merge's second parent is unsettled — the spec at this point only sketches the commit-message shape, not the graph shape. See *Considerations*: §*Attaching reviews to history* in [`dot-review-format.md`](./dot-review-format.md) for the open candidates (orphan archive commit, `-s ours` of the notes-ref tip with a filter step, content-addressed second parent, tree-blob-only). The implementation currently uses the orphan-archive shape; that may change before format v1.
 
 Compiled out by default; rebuild with `go build -tags with_review_merge`.
 
@@ -112,7 +114,7 @@ A reviewer who has just finished reading a section is past its last `> ` line (t
 
 ## Persistence
 
-**Notes ref.** Default `refs/notes/reviews/<branch>`. The notes ref is the source of truth — reads prefer it over any on-disk mirror.
+**Notes ref.** Default `refs/notes/reviews` (single shared ref, keyed by reviewed commit SHA). The notes ref is the source of truth — reads prefer it over any on-disk mirror. The "find the last review" question is answered by walking commits backwards from HEAD for the most recent `[Review]` merge, not by inspecting the notes ref directly.
 
 **File mirror (`-o`).** Optional. The mirror is rewritten on every save; reads still come from the note. Useful for diffing two reviews on disk or for tooling that doesn't speak git notes.
 
@@ -122,7 +124,7 @@ A reviewer who has just finished reading a section is past its last `> ` line (t
 
 ## Notes-ref interop
 
-The `refs/notes/reviews/*` namespace is shared territory, not gitflower-exclusive. Any note body on a per-branch ref is a recorded review action in git. `.review`-format bodies (first line is `dot-review-File-Version:`) are what gitflower reads and writes; other bodies — freeform sign-offs, kernel-style trailers (`Reviewed-By:`, `Acked-By:`, `Signed-off-by:`), CI-bot output, anything — coexist on the ref untouched.
+The `refs/notes/reviews` ref is shared territory, not gitflower-exclusive. Any note body on it is a recorded review action in git. `.review`-format bodies (first line is `dot-review-File-Version:`) are what gitflower reads and writes; other bodies — freeform sign-offs, kernel-style trailers (`Reviewed-By:`, `Acked-By:`, `Signed-off-by:`), CI-bot output, anything — coexist on the ref untouched.
 
 The `.review` parser ignores notes that don't begin with `dot-review-File-Version:`. The writer never overwrites them on save.
 
@@ -157,4 +159,4 @@ An earlier sketch had `gitflower review begin` / `diff` / `commit` / `commits` /
 
 ### Implementation lag
 
-The current Go implementation (`apps/gitflower/review/`, `apps/gitflower/tui/`) was written against an earlier draft of the format spec and does not yet match this document. Notable drift: events emit as `### Comment (From: …)` H3 headings instead of `- Commented-by: …` list items; section and per-file headings lack the `@ git …` reproduction recipe; the header block is missing; range markers emit as paired `### ReadStart` / `### ReadEnd` H3s instead of `* Read-by: …; begin` / `; end` list items; the default notes ref is `refs/notes/review` (singular, non-branched). The spec here describes the *target* behaviour; rewriting Parse and Render to match is tracked separately.
+The current Go implementation (`apps/gitflower/review/`, `apps/gitflower/tui/`) was written against an earlier draft of the format spec and does not yet match this document. Notable drift: events emit as `### Comment (From: …)` H3 headings instead of `- Commented-by: …` list items; section and per-file headings lack the `@ git …` reproduction recipe; the header block is missing; range markers emit as paired `### ReadStart` / `### ReadEnd` H3s instead of `* Read-by: …; begin` / `; end` list items; the default notes-ref constant is `refs/notes/review` (singular) instead of `refs/notes/reviews`. The spec here describes the *target* behaviour; rewriting Parse and Render to match is tracked separately.

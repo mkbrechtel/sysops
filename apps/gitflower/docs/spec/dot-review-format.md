@@ -121,7 +121,7 @@ PascalCase, like every other keyword. Unknown states are preserved verbatim and 
 
 ### Note subsections
 
-Quote the body of an arbitrary **git note** inline. Any note from any ref the reviewer wants to pull in: a freeform note that already sat on a `refs/notes/reviews/<branch>` ref, linter output stored on `refs/notes/lint`, a CI bot's `refs/notes/ci-results`, an audit trail on `refs/notes/commits`, whatever the workflow uses.
+Quote the body of an arbitrary **git note** inline. Any note from any ref the reviewer wants to pull in: a freeform note that already sat on `refs/notes/reviews`, linter output stored on `refs/notes/lint`, a CI bot's `refs/notes/ci-results`, an audit trail on `refs/notes/commits`, whatever the workflow uses.
 
 Shape: `## Note @ <git command>` where the recipe fetches the note. Body uses the *Object body* shape (see *Body shapes* below) — quoting line-by-line lets a reviewer pin a comment to a specific line of the note.
 
@@ -555,15 +555,23 @@ user-content body.
 
 ## Storage
 
-Default storage is a per-branch git notes ref named `refs/notes/reviews/<branch>`, with each note keyed by the reviewed commit's SHA. A `.review` body lives as the note attached to its commit; readers and writers exchange content through `git notes --ref=reviews/<branch> show <commit>` rather than touching the working tree. Per-branch refs keep the chain topical — every notes-commit on the ref is about the branch under review, so no filtering is needed when attaching the review to history later.
+Default storage is per commit in the git notes ref, `reviews`, with each note keyed by the reviewed commit's SHA.
 
-The on-disk `.review` file is optional and only relevant when a reviewer wants to commit the review into a tree alongside the code — for archival, for tooling that doesn't speak git notes, or to ship a review as part of a release. The conventional path in that case is `reviews/<branch-slug>-<tip-short>.review`, e.g. `reviews/feature-eb2d95b.review`. A single `.review` can carry multiple `# Diff` sections, so the filename names the review, not any one diff inside it.
+# Considerations
 
-## Attaching to history
+Rationale, rejected paths, and open questions. Deletable as a whole once the spec settles.
 
-When a review concludes, attach the per-branch notes ref to the branch by merging its tip into HEAD with `-s ours`. The merge commit's tree equals HEAD's tree — no `.review` content lands in the working tree — while the notes-commit chain hangs off the second parent, queryable via `git log <merge>^2` and `git show <merge>^2`. The merge commit becomes a tombstone-with-pointer: clean tree, full provenance.
+## No `Reviewed-by`
 
-**Subject and body.** Subject prefixed `[Review]`. The body carries a one-line summary of verdict counts, a `git show <notes-sha>` recipe pointing at the second parent (the literal SHA, baked in), and a trailer block copying every `Verdict-reached-by:` event from the `.review` verbatim — same key, same `Name <email>[ @<RFC3339>]; <state>` shape — so any parser that reads the format reads the trailer.
+**No kernel-style `Reviewed-by:` trailer.** Kernel `Reviewed-by:` means "I read this patch and sign off"; `Verdict-reached-by: …; Approved` is a state in a review session's verdict machine. Different workflow, different semantics — keep them separate. Tools that need a kernel-style sign-off can recognise `Verdict-reached-by: …; Approved` directly.
+
+## Attaching reviews to history
+
+**Open question.** How a completed review surfaces in the project's commit history — both the *marker* (how a tool finds "the last review landed here") and the *graph shape* (what the attach commit looks like) — is unsettled.
+
+**Marker convention.** Current sketch: a merge commit whose subject is prefixed `[Review]`. Tools walking commits backwards from HEAD find the most recent one and treat its first parent as the last reviewed point. Alternatives: a git tag (`reviews/<sha>`) on the reviewed commit, or a structured trailer in the merge commit message that names the reviewed range explicitly.
+
+**Merge commit body.** Sketch: a one-line verdict-count summary, a `git show <notes-sha>` recipe pointing at the notes-commit that holds the `.review` body (literal SHA, baked in), and a trailer block copying every `Verdict-reached-by:` event from the `.review` verbatim — same key, same `Name <email>[ @<RFC3339>]; <state>` shape — so any parser that reads the format reads the trailer.
 
 ```
 [Review] feature/add-foo: 2 Approved, 1 ClarificationRequired
@@ -575,4 +583,15 @@ Verdict-reached-by: Bob <bob@example.com> @2026-05-18T14:30:00Z; Approved
 Verdict-reached-by: Carol <carol@example.com> @2026-05-18T16:01:00Z; ClarificationRequired
 ```
 
-**Tree inclusion is optional.** `-s ours` is the default — clean tree, full provenance in history only. A reviewer or workflow may override and let some or all of the `.review` (or just the unresolved `## Issue` subsections) land in the tree for in-tree resolution. Policy decisions like "open issues must materialise before merge" belong to a gate hook, not the format.
+**Merge-graph mechanism.** Earlier drafts pursued two shapes:
+
+- **Per-branch notes ref + `-s ours` merge.** Each branch under review carried its own `refs/notes/reviews/<branch>` chain, and the attach merged that ref's tip into HEAD with `-s ours`. Clean and self-contained, but it forces a per-branch ref layout that complicates "find any review of this commit" lookups for cherry-picks, rebases, and shared commits — so the spec dropped per-branch refs in favour of a single shared `refs/notes/reviews`, which left the merge mechanism without an obvious next-parent to point at.
+- **Orphan archive commit.** Build a one-commit orphan that holds just the relevant `.review` blob and use *that* as the merge's second parent. Lookups stay simple, but the orphan-commit SHA is no longer the notes-ref SHA, so the `git show <notes-sha>` recipe needs to point at the orphan, not at the live note. Reproducibility depends on canonicalising the orphan's author/committer metadata.
+
+Other candidates: a `-s ours` of the shared notes-ref tip with a per-merge filter; content-addressing the merge's second parent directly to the notes-commit that holds the relevant `.review` (accepting that the second parent drags along unrelated notes-commits for other reviewed commits in the chain); or attaching the review as a tree blob under `reviews/` and skipping the second-parent shape entirely. Pick one before the format goes to v1.
+
+## On-tree `.review` file
+
+A reviewer may want to commit the review into a tree alongside the code — for archival, for tooling that doesn't speak git notes, or to ship a review as part of a release. The conventional path in that case is `reviews/<branch-slug>-<tip-short>.review`, e.g. `reviews/feature-eb2d95b.review`. A single `.review` can carry multiple `# Diff` sections, so the filename names the review, not any one diff inside it.
+
+Open: whether tree inclusion is purely a per-reviewer convention, a workflow gate (e.g., "open issues must materialise before merge"), or carries any spec-level shape requirements.
