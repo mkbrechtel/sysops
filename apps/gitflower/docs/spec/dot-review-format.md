@@ -1,0 +1,656 @@
+---
+#SPDX-FileCopyrightText: 2026 Markus Katharina Brechtel <markus.katharina.brechtel@thengo.net>
+#SPDX-License-Identifier: EUPL-1.2
+---
+
+# `.review` — patch-quoting markdown-ish for in-tree code reviews
+
+A single-file format for one code review. Markdown-ish, with a fixed chapter structure: H1 = section (commit/diff/tree), H2 = sub-section (content/diff), list items = reviewer events. Patch / file content is `> `-quoted verbatim from git so the review reads like an annotated diff.
+
+This file specifies the on-disk format. The reference reader/writer is gitflower; its commands, TUI, and notes-ref integration are documented separately in [`./gitflower-review.md`](./gitflower-review.md).
+
+## Goal
+
+**Zero implicit scope.** Everything the review covers lives in the file; readers and tools never guess from external context.
+
+**Readable.** If you just read the file you understand what's going on. Suitable for long-term preservation and for LLMs reading the review without specialist tooling.
+
+**Self-describing git references.** Section headings inline an `@ <git command>` recipe with literal commit, tree, and blob OIDs, so the review names the exact objects it covers — independent of any refs that may later move.
+
+**Optional timestamps**, off by default for privacy reasons. Reviewer attribution is `Name <email>`; events grow a trailing ` @<RFC3339>` slot when the writer opts in.
+
+## Header
+
+Every `.review` file starts with a header block of `Key: value` trailer lines, one per line, terminated by `---` on its own line:
+
+```
+dot-review-File-Version: 0
+dot-review-Intro: This file uses the .review format — a patch-quoting markdown-ish file format with a fixed chapter structure. Every heading is a review section, every `> ` line is verbatim git content,  every list item (`-` or `*`) is a reviewer reaction.
+dot-review-Docs-Link: https://cute-devops.patterns.how/apps/gitflower/docs/spec/dot-review-format
+---
+# Review
+…
+```
+
+**`dot-review-File-Version:`** is the only required key — an integer, currently `0` — and **must be the very first line of the file**. Readers probe this exact first-line shape to recognise a `.review`; a file that doesn't begin with `dot-review-File-Version:` is not a `.review`. Version 0 is unstable: breaking changes may land at any time, and v0 readers/writers are not guaranteed to round-trip across spec revisions. The first stable release bumps to `1`.
+
+**`dot-review-Intro:` and `dot-review-Docs-Link:`** are always emitted by the writer so a reader who's never seen a `.review` file has an immediate pointer to documentation. The Intro is a one-paragraph description of the format; the Docs-Link points at the full spec.
+
+**Implementation-specific keys** are prefixed `X-<app>-` (e.g. `X-gitflower-…:` for gitflower-only state), mirroring the mail-header convention for non-standard extensions. Unknown header keys are preserved per the generic rule below.
+
+Information in header keys is generally not shown to the user when viewing the file.
+
+The closing `---` must be on its own line, followed by the line where the body starts with `# Review`.
+
+## Generic body format rules
+
+The `.review` format is strictly line oriented where the characters at the beginning of the lines determin the purpose of everything that is in that line. Line-order matters and establishes reference and hierachy by indentation.
+
+While it is possible to edit a `.review` file locally, a server side gate might ensure edits as append-only insertions in order to merge multiple actions by multiple reviewers nicely.
+
+Unknown lines in the body should be displayed to the user in the relevant section at the relevant position as-is. Also the parser doesn't fail on them. This preserves backwards-compatibility for functionality that are just added.
+
+**Indentation marks containment.** One space indent marks content that belongs directly to a `## Subsection`. Two space indent marks content that belongs to the preceding reviewer-action list item. In both cases the block runs as long as the indented lines continue and ends as soon as the next line-block begins (another event, another heading, a `> ` quoted line, …). Unindented column-0 lines belong to the section/subsection structure itself.
+
+Reviewer actions are list items with the shape `[<indent-spaces>]<bullet> <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]`, optionally followed by a body indented two spaces below. The keyword is a kebab-cased past-tense verb (`Read-by:`, `Commented-by:`, `Verdict-reached-by:`, …) mirroring git's trailer convention (`Reviewed-By:`, `Signed-off-by:`). The bullet splits range markers (`*` for `Read-by:` / `Skipped-by:`) from everything else (`-`). The optional ` @<RFC3339>` slot carries an event timestamp when the author is opted in; the optional `; <args>` slot carries kind-specific parameters (an emoji, a verdict state, `begin` / `end`, …). Per-event semantics and multiplicity rules live under *Reviewer events*. Unknown `-by:` keys are preserved verbatim and displayed in place, same as any other unknown line.
+
+**Paths in `.review` content are JSON-encoded strings** (RFC 8259). Anywhere a path appears as content — section heading titles, tree-listing body entries, anywhere else — wrap it in double quotes and escape special characters per JSON string rules: `\"`, `\\`, `\n`, `\t`, control-character `\u00xx` escapes. Stays parseable even for paths containing spaces, quotes, or control characters. Recipe-side arguments (after `@`) are the exception: they follow git/shell quoting rules since the recipe is meant to be pasted into a shell.
+
+When adding new functionality to the format make sure that someone who knows how to read markdown can understand whats going on even without consulting the format specification.
+
+## Top-level structure
+
+Top-level sections appear in the order the reviewer added them. Only the first one (`# Review`) is mandatory and must be unique; everything else is optional. Sections may appear more than once: two `# Diff` sections cover two diff ranges, ten `# Commit` sections list ten commits, several `# Repo Tree` / `# Subfolder` sections cover the trees the reviewer opened.
+
+**The part after `@` in every section heading is a literal, copy-paste-runnable git command that reproduces what's quoted below it.** Title on the left, reproduction command on the right.
+
+**`# Review`** is the summary of the review. Unique and mandatory.
+
+**`# Diff <diffspec> @ git diff <oldcommit>..<newcommit>`** carries a code diff, split per file.
+
+**`# Commit <sha> @ git show <sha>`** carries one commit: headers, message, and per-file diff.
+
+**`# Repo Tree for <ref> @ git ls-tree <commit-sha>`** lists a commit's root tree, with `## File "<path>"` subsections for files the reviewer opened.
+
+**`# Subfolder "<path>" tree @ git ls-tree <commit-sha>:<path>/`** lists one subfolder of a commit's tree, same shape as `# Repo Tree`.
+
+## `# Review` section
+
+Holds the structured shapes the parser recognises below — meta lines, verdict-reached-by lines, and `## Note` / `## Remark` / `## Issue` subsections. No unindented free prose.
+
+### Meta lines
+
+Meta lines start with `- ` and follow a `key: value` shape:
+
+```
+# Review
+- SPDX-FileCopyrightText: 2026 Markus <markus@example.org>
+- SPDX-License-Identifier: EUPL-1.2
+- Review-Head-Commit: 2d2442633399f38197249ae9f30b001e0943564a
+- Review-Branch: experiments/stack-review
+- Created-By: Mirian <mirian@example.org>
+```
+
+`Review-Head-Commit` is what HEAD was when the review file was created — the *point in time* of the review, not a commit being reviewed.
+
+**SPDX license / copyright lines** live here as meta lines. The `.review` is its own copyrightable artefact — reviewers may want to license their prose separately from the code under review — and reviewers naturally edit `# Review` content. REUSE-style scanners pick the tags up unchanged through the leading `- ` (verified against REUSE 5.0.2 / spec v3.3).
+
+### Verdict-reached-by lines
+
+`- Verdict-reached-by: <Name> <<email>>; <state>` followed by an optional double-space-indented body:
+
+```
+- Verdict-reached-by: Markus <markus@example.org>; RequestedChanges
+  Needs a test before merge.
+
+  Multi-paragraph summary works the same as comments — indent the body
+  by two spaces so it nests under the list item.
+```
+
+At most one verdict per (Name, email) — submitting again replaces in place.
+
+`<state>` is one of:
+
+- `Open` — initial / "no verdict yet, still reading"
+- `ClarificationRequired` — "I'd give a verdict but I have unanswered questions blocking that". Distinct from `RequestedChanges`: the author hasn't been asked to do anything yet, they've been asked to *explain*. Naturally paired with one or more open `- Asked-by:` events elsewhere in the file.
+- `RequestedChanges` — needs work before merge
+- `Approved` — good to merge
+- `Denied` — reject; this work should not land
+
+PascalCase, like every other keyword. Unknown states are preserved verbatim and treated as `Open` for any sort / filter.
+
+### Note subsections
+
+Quote the body of an arbitrary **git note** inline. Any note from any ref the reviewer wants to pull in: a freeform note that already sat on `refs/notes/reviews`, linter output stored on `refs/notes/lint`, a CI bot's `refs/notes/ci-results`, an audit trail on `refs/notes/commits`, whatever the workflow uses.
+
+Shape: `## Note @ <git command>` where the recipe fetches the note. Body uses the *Object body* shape (see *Body shapes* below) — quoting line-by-line lets a reviewer pin a comment to a specific line of the note.
+
+```
+## Note @ git notes --ref=refs/notes/go-lint show 2d2442633399
+> 1: greet.go:14:2: warning: shadow declaration of 'err'
+> 2: greet.go:27:5: warning: unused variable 'tmp'
+> 3: server.go:88:1: warning: function exceeds cyclomatic threshold
+- Commented-by: Markus <markus@example.org>
+  The cyclomatic warning on line 3 is intentional — the handler
+  needs to dispatch on six request kinds. Suppressed in
+  `lintignore`.
+- Reacted-by: Alice <alice@example.com>; 👍
+```
+
+The recipe is the source-of-truth pointer; a Note body is never rewritten — the lines came verbatim from `git notes show`. Notes don't need resolving. Multiple `## Note` subsections per review are fine.
+
+### Remark subsections
+
+`## Remark` H2 items hold free-form reviewer commentary that *doesn't need resolving* — the unstructured counterpart to Issues. Use one for each "thing I want to say but isn't a tracked work item": a short summary, pointers to related reviews, design context, anything that's reference rather than ask.
+
+Shape: H2 heading (no title, no `@ <recipe>` — Remarks are pure reviewer output), then one-space-indented paragraphs, then one or more `- Remarked-by: Name <email>` signature lines. Reviewer events (`- Commented-by:`, `- Reacted-by:`, `- Asked-by:`, `- Answered-by:`) can appear inside, same as in any other section.
+
+```
+## Remark
+ First time we're touching the legacy auth path in this branch.
+ Worth flagging because the surrounding code has the "here be
+ dragons" comment from the 2021 incident.
+- Remarked-by: Markus <markus@example.org>
+- Reacted-by: Alice <alice@example.com>; 👍
+
+## Remark
+ Tested manually with the staging account; CI covers the happy
+ path, edge cases are in #ops-followup.
+- Remarked-by: Markus <markus@example.org>
+```
+
+Signatures (`- Remarked-by: Name <email>`) carry no body — they record who made the remark. First signature is the creator; subsequent ones are co-signers who endorse the remark. At most one signature per (author, remark) — re-signing is a no-op.
+
+Multiple `## Remark` subsections per review are fine — each its own item, in the order the reviewer added them. The on-disk heading stays bare `## Remark`; any numbering ("Remark 1", "Remark 2", …) is derived from position by the reader, not stored.
+
+No resolve workflow — remarks are reference, not work. If a remark turns into actionable work, promote it to an `## Issue` and remove it from here.
+
+### Issue subsections
+
+`## Issue <title>` H2 items hold free-form issues about the change as a whole — code-style nits that span files, naming conventions, follow-up work that should land but not block this MR, anything that isn't tied to a specific line, file, commit, or diff.
+
+Shape: H2 heading with title, one-space-indented description block, then one or more `- Issued-by: Name <email>` **signature lines**, then any reviewer events (comments, reactions, questions, answers).
+
+```
+## Issue name uses snake_case but project uses camelCase
+ Several added identifiers (`parse_lines`, `total_count`) break
+ the existing convention. Worth a sweep before merge.
+
+ Multiple description paragraphs work — each line stays at one
+ space of indent so it parses as the issue's body, not as a
+ new top-level paragraph that would close the section.
+- Issued-by: Markus <markus@example.org>
+- Issued-by: Alice <alice@example.com>
+
+- Commented-by: Bob <bob@example.com>
+  Agreed — rename across the board, not just the new code.
+
+- Reacted-by: Carol <carol@example.com>; 👍
+```
+
+Signatures (`- Issued-by: Name <email>`) carry no body — they're the issue's owners. The first signature is the creator; subsequent ones are co-signers who've made the issue their own (often when they hit the same problem reading further). At most one signature per (author, issue) — re-signing is a no-op.
+
+Un-signing means deleting your own signature line; the issue stays as long as at least one signature remains. An issue with zero signatures is orphan.
+
+**Resolving an issue**: add a `- Resolved-by: Name <email>` line inside the issue's body. Resolved is a marker event — no body, no parameter, just attribution — and one of them anywhere inside the issue closes it.
+
+```
+## Issue name uses snake_case but project uses camelCase
+ Several added identifiers break the existing convention.
+- Issued-by: Markus <markus@example.org>
+
+- Commented-by: Alice <alice@example.com>
+  Pushed the rename in commit abc1234.
+
+- Resolved-by: Markus <markus@example.org>
+```
+
+At most one `- Resolved-by:` per (author, issue) — re-resolving is a no-op. Any signer can resolve; resolving by someone who hasn't signed is fine too (e.g. the author of the fix closes a reviewer's issue). To re-open, delete the `- Resolved-by:` line — there's no explicit "unresolve" event.
+
+No `@ <recipe>` on the heading: issues are pure reviewer output, nothing to reproduce from git.
+
+Multiple `## Issue` subsections under `# Review` are fine — each its own item. The title is freeform; uniqueness is not enforced.
+
+## Git-Content body shapes
+
+Three generic `> `-quoted body shapes for git output. Every subsection that quotes git content (`# Diff` per-file subsections, `# Commit` per-file subsections, `## File` subsections under `# Repo Tree` / `# Subfolder`, `## Note` subsections) uses one of these.
+
+### Object body
+
+The full contents of a single git object (a blob, typically), every line emitted as `> <N>: <line>`:
+
+```
+> 1: package greet
+> 2:
+> 3: import "fmt"
+```
+
+### Diff body
+
+A two-blob comparison, line-numbered before the diff sign so a reader can recover the position even from a truncated hunk:
+
+```
+> @@ -1,4 +1,5 @@
+> 1 1: alpha
+> 2: -beta
+> 2: +BETA
+> 3: +inserted
+> 3 4: gamma
+> 4 5: delta
+```
+
+The gutter mirrors git's `@@ -<old> +<new> @@` convention: old (left) before new (right), `-` before `+` for changed lines:
+
+- `> <old>: -<text>` — deleted line, `<old>` is the old-side number
+- `> <new>: +<text>` — added line, `<new>` is the new-side number
+- `> <old> <new>: <text>` — context line, old number first, new number second, matching `@@ -<old> +<new> @@` left-to-right.
+
+
+### Deletion body
+
+A file that's gone in the new tree, presented end-to-end as if it were a diff that deletes every old-side line:
+
+```
+> 1: -package greet
+> 2: -
+> 3: -import "fmt"
+```
+
+Reads more obviously as "this file is gone" than a plain content listing would.
+
+## `# Diff <diffspec> @ git diff <oldcommit>..<newcommit>` section
+
+Heading carries the symbolic diffspec the reviewer asked for plus the literal git command that reproduces it. Run the part after `@` and you get the unannotated diff this section quotes:
+
+```
+# Diff main..feature @ git diff 0202886b188d..eb2d95b459ff
+```
+
+The body is **per-file subsections** — one per changed file, in path-sorted order. There is no top-level diff body on the `# Diff` heading itself. Which subsection heading is used depends on the file's lifecycle:
+
+| Lifecycle | H2 heading | Body |
+|---|---|---|
+| Modified | `## File "<path>" modified @ git diff <oldblob>..<newblob>` | *Diff body* |
+| Created | `## File "<path>" created @ git show <newblob>` | *Object body* |
+| Deleted | `## File "<path>" deleted @ git show <oldblob>` | *Deletion body* |
+| Moved (pure rename) | `## File "<oldpath>" moved to "<newpath>"` | empty — nothing to reproduce |
+| Moved + modified | `## File "<oldpath>" modified and moved to "<newpath>" @ git diff <oldblob>..<newblob>` | *Diff body* |
+
+See *Body shapes* above for the body specs. Example modified file:
+
+```
+## File "x.txt" modified @ git diff a1b2c3d..e4f5a6b
+
+> @@ -1,4 +1,5 @@
+> 1 1: alpha
+> 2: -beta
+> 2: +BETA
+> 3: +inserted
+> 3 4: gamma
+> 4 5: delta
+```
+
+## `# Commit <sha> @ git show <sha>` section
+
+One commit per H1 section. The heading's `@ git show <sha>` reproduces the commit's full picture (headers + message + diff) for any reader who just wants the raw view.
+
+The body has two parts:
+
+1. A quoted block with the commit's headers and message.
+2. One `## File "<path>" …` subsection per file touched by the commit — same lifecycle family and body shapes as inside a `# Diff` section.
+
+```
+# Commit dd56c2ea01a7 @ git show dd56c2ea01a7
+> From: Author <author@example.org>
+> Date: Wed, 17 May 2026 10:00:00 +0000
+> Subject: Add feature B
+> Message:
+> > First paragraph of the commit message.
+> >
+> > Second paragraph after a blank line.
+
+## File "b.txt" created @ git show a1b2c3d
+
+> 1: feature B
+> 2: initial implementation
+> 3: line 3
+```
+
+Line shapes inside the header/message quoted block:
+
+- `> From: <Name> <<email>>` — author header (one space after `>`).
+- `> Subject: <subject>` — single-line subject.
+- `> Date: <RFC2822>` and any other commit headers — one space after `>`.
+- `> Message:` — header line introducing the commit message body.
+- `> > <message line>` — message body lines as a **nested blockquote**. 
+
+Per-file subsections use the exact same lifecycle family as in `# Diff` above — `## File "<path>" modified` / `## File "<path>" created` / `## File "<path>" deleted` / `## File "<oldpath>" moved to "<newpath>"` — drawing the body from *Body shapes*.
+
+## `# Repo Tree for <ref> @ git ls-tree <commit-sha>` section
+
+The root tree of a commit. Heading carries the symbolic ref (a branch, a tag, `HEAD`, …) and the `git ls-tree` recipe that reproduces the listing. Body is the ls-tree output, one entry per `> ` line:
+
+```
+# Repo Tree for main @ git ls-tree 0202886b188d
+> 100644 blob a1b2c3d4    "README.md"
+> 100644 blob d4e5f6a7    "Makefile"
+> 040000 tree b7c8d9e0    "src"
+> 040000 tree f0a1b2c3    "docs"
+
+## File "README.md" @ git show a1b2c3d4
+> 1: # Project
+> 2:
+> 3: Description…
+```
+
+`## File "<path>"` H2 subsections under `# Repo Tree` carry the contents of files the reviewer opened. The path is **repo-root-relative**, so files in subfolders show their full path. Body is the *Object body* shape (see *Body shapes*).
+
+## `# Subfolder "<path>" tree @ git ls-tree <commit-sha>:<path>/` section
+
+A subfolder listing, peer to `# Repo Tree`. Same body shape as `# Repo Tree`. The heading's path is repo-root-relative; the recipe uses git's `<commit-sha>:<path>/` syntax to resolve the subtree at that path:
+
+```
+# Subfolder "src" tree @ git ls-tree 0202886b188d:src/
+> 100644 blob 12345678    "main.go"
+> 100644 blob 89abcdef    "util.go"
+
+## File "src/main.go" @ git show 12345678
+> 1: package main
+> 2:
+> 3: import "fmt"
+```
+
+`## File "<path>"` H2 subsections under `# Subfolder` use the same full repo-root-relative path in the heading.
+
+## Reviewer events
+
+Every reviewer action is a markdown-ish list item. Two different bullets so
+`grep` can pick one lane without the other:
+
+| Bullet | Shape | Used for |
+|---|---|---|
+| `*` | `* <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Range markers (no body) — `Read-by:` / `Skipped-by:`. |
+| `-` | `- <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Everything else: `Commented-by:`, `Asked-by:`, `Answered-by:`, `Reacted-by:`, `Verdict-reached-by:`, `Issued-by:`, `Remarked-by:`, `Resolved-by:`. Optional body indented two spaces below. |
+
+The body, when present, is **indented two spaces** so it nests under
+the list item. That indentation is what lets a comment contain its own
+markdown headings, lists, even nested blockquotes (`>`), without
+colliding with the section structure or with the patch-quote `> ` lines.
+
+All keyword names are **kebab-cased past-tense verbs** ending in `-by:` (`Read-by:`, `Commented-by:`, `Verdict-reached-by:`, …). They mirror git's trailer convention (`Reviewed-By:`, `Signed-off-by:`).
+
+Full event shape: `<Keyword>-by: Name <email@example.org>[ @<RFC3339>][; <args>]`. The optional ` @<RFC3339>` slot carries an event timestamp when the writer is opted in; the optional `; <args>` slot carries kind-specific parameters (the emoji for `Reacted-by:`, the state for `Verdict-reached-by:`, `begin` / `end` for `Read-by:` and `Skipped-by:`).
+
+### Range markers (read / skip)
+
+```
+* Read-by: Markus <markus@example.org>; begin
+* Read-by: Markus <markus@example.org>; end
+* Skipped-by: Markus <markus@example.org>; begin
+* Skipped-by: Markus <markus@example.org>; end
+```
+
+**Read/Skip markers cover only the `> ` quoted content** — the
+file content / diff / commit body the reviewer is actually reading.
+Reviewer events (comments, questions, reactions, answers) are *not*
+"read" or "skipped"; they're the reviewer's own writing, not the
+artefact under review. A `Read-by: …; begin` / `Read-by: …; end` pair brackets a range of `> ` lines; reviewer events that happen to sit inside that range are along for the ride but neither extend nor close it.
+
+Pairing is by alternation: walking the events of one (reviewer, section) in file order, every `; begin` opens a range and the next `; end` from the same reviewer closes it. Multiple disjoint pairs are fine — you might read the top of a file, scroll past a chunk you don't care about, then read the bottom; that's two `Read-by:` pairs.
+
+**Redundancy rule** depends on whether timestamps are on.
+
+*Without timestamps:* two of the same kind in a row from the same reviewer without the opposite between them carry no new information. `; begin` then another `; begin` (no `; end` between) is a writer bug — the first begin is still open, the second says nothing past it. Same for two `; end` in a row. Strict alternation: `begin, end, begin, end, …`.
+
+*With timestamps:* two of the same kind from the same reviewer at different timestamps are fine — each carries new information (the moving end-of-read position over time). Re-marking `; end` later in the file at a later timestamp records "I read further". Still not allowed: two of the same kind at the same anchor with the same timestamp from the same reviewer — no transition, no new info, just noise.
+
+When a section is fully read, the minimal form is just `* Read-by: …; begin` at its first quoted line and `* Read-by: …; end` at its last. As the reviewer reads more (or splits reading across sessions), the writer either moves the existing `; end` forward (no-timestamps mode) or appends a fresh `; end` at the new position (with-timestamps mode).
+
+Same rules apply to `Skipped-by: …; begin` / `Skipped-by: …; end`.
+
+**Timestamps are optional**, off by default. With timestamps enabled, the ` @<RFC3339>` slot comes between the email and the `;`: `* Read-by: Markus <markus@example.org> @2026-05-17T19:00:00Z; end`.
+
+### Comments
+
+```
+- Commented-by: Markus <markus@example.org>
+  First paragraph of the comment. The first line is the comment's
+  one-line summary — readers often show it inline next to the
+  anchored line.
+  
+  A blank line (two spaces, then nothing) starts a new paragraph. The
+  whole body is indented two spaces so any markdown the reviewer
+  writes — including nested lists, code blocks, even
+  
+  > blockquotes
+  
+  — round-trips with no escaping.
+```
+
+The encoded form of the blank-line separator is `  \n  \n` (two trailing
+spaces on the blank line plus the indentation of the next line) so the
+indentation level stays consistent.
+
+### Questions
+
+Same shape as comments except the bullet says `Asked-by:`. An asked-by event is "I'd like an answer" — distinct from a commented-by which is "here's what I think".
+
+```
+- Asked-by: Markus <markus@example.org>
+  Why "revised"? Was there an earlier version that got squashed?
+```
+
+### Answers
+
+Every `Asked-by:` deserves an answer. An `Answered-by:` is a **nested list item inside the asked-by's body**, two extra spaces of indent (so four total). The blank line between question body and the nested `- Answered-by:` matters — without it the answer would parse as another inline list inside the question's prose rather than a child event:
+
+```
+- Asked-by: Markus <markus@example.org>
+  Why "revised"? Was there an earlier version that got squashed?
+
+  - Answered-by: Author <author@example.org>
+    Yes — the first version landed `b.txt` only; the squash adds
+    `b.test` in response to the question on the first round.
+```
+
+Anchoring: the Answer attaches to its parent Question (which in turn
+is anchored to a line or section). Multiple Answers under one
+Question are fine — they're just consecutive nested `- Answered-by:`
+items.
+
+Structurally, `Answered-by:` is a normal `-` event — same `Name <email>` attribution, same indented-body shape, same optional ` @<RFC3339>` timestamp — it just lives one indent level deeper than the `Asked-by:` it answers.
+
+**A Question is *open* if it has no `- Answered-by:` under it.** Open questions are what the `ClarificationRequired` verdict state refers to. Adding any `- Answered-by:` (from any reviewer, not necessarily the one who'd block) closes the question. Re-opening means deleting the existing answer(s) and asking again — there is no explicit "unanswer" event.
+
+### Reactions
+
+```
+- Reacted-by: Markus <markus@example.org>; 👍
+- Reacted-by: Alice <alice@example.com>; 👎
+- Reacted-by: Alice <alice@example.com>; 🎉
+```
+
+One emoji per reaction event. No body.
+
+Multiplicity rule: **at most one of each emoji per (author,
+anchor)**. The same author can stack different emojis at one anchor
+(`👍` and `🎉`), and re-submitting the same emoji replaces in place
+rather than appending a duplicate.
+
+Reactions can also be **nested under a Commented-by, Asked-by, or Answered-by** — same `- Reacted-by: …; <emoji>` shape, indented two extra spaces so it sits as a child of the parent event:
+
+```
+- Commented-by: Alice <alice@example.com>
+  Clean refactor.
+
+  - Reacted-by: Markus <markus@example.org>; 👍
+  - Reacted-by: Bob <bob@example.com>; 🎉
+```
+
+This lets reviewers acknowledge each other's input without writing
+prose for it. The "once per emoji per author" rule applies at the
+nested level too: Alice can stick 👍 and 🎉 on Bob's comment but
+only one 👍.
+
+### Verdict-reached-by
+
+Defined under `# Review` § *Verdict-reached-by lines*. Only valid there.
+
+## Anchoring
+
+Position decides anchor.
+
+**Line anchor.** An event placed after one or more `> ` patch lines anchors to the immediately preceding `> ` line. Moving the event in the file moves the anchor by definition.
+
+**Section anchor.** An event placed at the top of a section or subsection — before the first `> ` line — anchors to the whole section. Section anchoring works for every container shape: `# Review`, `# Diff`, `# Commit`, `# Repo Tree`, `# Subfolder`, `## Note`, `## Remark`, `## Issue <title>`, the `## File …` lifecycle variants in `# Diff` and `# Commit`, and `## File "<path>"` under `# Repo Tree` / `# Subfolder`. Use it for "what I think about this file/diff/commit/issue/note overall" rather than a specific line.
+
+```
+## File "greet.go" modified @ git diff a1b2c3d..e4f5a6b
+
+- Reacted-by: Alice <alice@example.com>; 👍
+- Commented-by: Alice <alice@example.com>
+  Clean refactor — nothing line-specific to flag.
+
+> @@ -3,4 +3,7 @@
+> 3 3: func Hello(name string) string {
+…
+```
+
+Multiple events at the same anchor are supported by listing them in sequence — the parser preserves order, so a thread of replies on one line is just consecutive `- Commented-by:` items, and a stack of file-level reactions is the same shape at the top of the section.
+
+## Section / heading boundary rules
+
+H1 (`# `) closes any open section. H2 (`## `) closes any open H2 inside
+the current H1. List items (`- ` / `* `) close any previously open list
+item but stay inside the current H1/H2.
+
+**Structural headings live only at column 0.** All user content
+(comment bodies, issue descriptions, remark prose, answers) is
+indented, so a user-typed `# Foo` lands as `  # Foo` on disk and
+the parser doesn't see it as a section boundary (it matches `^# `
+/ `^## ` only). Users can write any markdown headings in their
+prose; no shift, no escape, no special casing.
+
+The writer never emits a non-indented `# ` or `## ` inside a
+user-content body.
+
+## File naming
+
+Default path: `reviews/<branch-slug>-<tip-short>.review`, e.g.
+`reviews/feature-eb2d95b.review`. There's no `from-` suffix any more
+because a `.review` can carry multiple `# Diff` sections.
+
+The same content also lives in the `refs/notes/reviews` notes ref keyed by the reviewed commit's SHA; the on-disk file is an optional mirror.
+
+## Parser
+
+Line-oriented state machine. State: `section` (Review / Diff / Commit / RepoTree / Subfolder / unknown), `subsection` (Note / Remark / Issue / File / none — `Note`, `Remark`, and `Issue` only under `# Review`; `File` under `# Diff`, `# Commit`, `# Repo Tree`, and `# Subfolder`), `lastPatchLine`, `currentEvent`.
+
+H1/H2 headings always carry an `@ <git command>` tail; the parser
+captures both the title (between the leading `# ` and ` @ `) and
+the command (after ` @ `) for round-trip preservation.
+
+Keyword recognition is **case-insensitive**. The writer emits the canonical capitalised form (`Read-by:`, `Commented-by:`, …); the parser accepts any case (`read-by:`, `READ-BY:` both parse the same).
+
+A `.review` file contains **no unindented free prose**. Every column-0 line is one of: a heading (`# `, `## `, `### `), a `> ` quoted line, a meta line (`- Key: value`), a reviewer-event list item (`* <Keyword>-by:` / `- <Keyword>-by:`), or a blank line. Anything else is a parser error. Body text only exists indented — one space under a `## Issue`/`## Remark` description block, two spaces under a `-` event — or inside a `> > ` nested blockquote (commit message). Keeping the lexer space this small lets a grep-and-awk reader handle the format with no real parser.
+
+| Line shape | Action |
+|---|---|
+| `# <Title>` | Close any open event/subsection. Switch section. |
+| `## <Title>` | Close any open event. Switch subsection. |
+| `> <text>` | Close any open event. Record `lastPatchLine`. |
+| `* <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Range marker event (`Read-by:` / `Skipped-by:`, with `; begin` or `; end` in the args slot). Anchor to `lastPatchLine`. No body. |
+| `- <Keyword>-by: Name <email>[ @<RFC3339>][; <args>]` | Open a `Commented-by:` / `Asked-by:` / `Answered-by:` / `Reacted-by:` / `Verdict-reached-by:` / `Issued-by:` (issue signature) / `Remarked-by:` (remark signature) / `Resolved-by:` (issue-close marker). Body is subsequent two-space-indented lines until the next non-indented line. `Issued-by:`, `Remarked-by:`, `Reacted-by:`, and `Resolved-by:` carry no body. |
+| `<one-space-indented text>` (under `## Issue` / `## Remark`) | Append to the subsection's description block (with the leading space stripped). Block ends at the next line-block. |
+| `<two-space-indented text>` (under a reviewer-action list item) | Append to that action's body (with the leading two spaces stripped). Block ends at the next line-block. |
+| Anything else at column 0 | Parser error. The writer never emits unindented free prose. |
+
+## Recovering patches
+
+```bash
+# The reproduction command sits on every heading, so the easiest
+# "recovery" is to just run it:
+grep -E '^(# |## ).* @ git ' file.review
+# → copy-paste the part after `@` to get any artifact verbatim.
+
+# Or pull a section's quoted body straight out of the file:
+
+# One file's diff (inside a `# Diff` or `# Commit` section)
+awk '/^## File "b\.txt" modified /{p=1; next} /^## /{p=0} p' file.review \
+  | sed -E '/^> ?/!d; s/^> [0-9 ]*[+-: ]//; s/^> ?//'
+
+# One commit's headers + message (the H1 body, no per-file diffs)
+awk '/^# Commit dd56c2ea /{p=1; next} /^(# |## )/{p=0} p' file.review \
+  | sed -E '/^> ?/!d; s/^> ?//'
+
+# All comments by author
+grep -A2 '^- Commented-by: Alice' file.review
+```
+
+## Multi-reviewer
+
+One `.review` file (or one note on `refs/notes/reviews`) per reviewed
+commit, shared across reviewers. Each event carries
+`by <Name> <<email>>` attribution so events from different people
+interleave naturally. Concurrent editing is not solved by the format —
+coordinate by branch + lock conventions externally.
+
+## Non-goals
+
+- **Not a patching surface.** The patches inside ARE git patches and
+  recover cleanly per-commit, but the `.review` file is for tracking a
+  single review accurately in one file. Apply by recovering per-commit
+  `.patch` files first.
+- **Not a binary format.**
+- **Not a forge replacement.** No notifications, permissions, rate
+  limiting.
+
+## References
+
+- [`gitflower-review.md`](./gitflower-review.md) — the reference tool that reads and writes this format.
+- Linux kernel patch review on `lkml` (the mental model this format borrows from).
+- The in-tree-review pattern (`patterns/approaches/in-tree-review.md`).
+- The git notes layout (`refs/notes/reviews`) where this same content lives content-addressed for the active-review case.
+
+## Considerations
+
+Rationale, rejected paths, and "why not" notes. Deletable as a
+whole once the spec settles.
+
+### Deletion uses *Deletion body*, not *Object body*
+
+A `## File "<path>" deleted` section with `git show <oldblob>` as its recipe could just as easily carry the *Object body* shape. We chose *Deletion body* instead because plain object content sitting next to a `## File "<path>" modified` reads as "this file still exists", and the `-` markers make "this is gone" obvious at a glance.
+
+### Notes are line-numbered for commentability
+
+A note's content is the artefact under review (linter output,
+CI trace, etc.), the same way a file's lines or a diff's hunks
+are. Quoting line-by-line lets a reviewer pin a comment to "this
+warning" rather than "somewhere in the note".
+
+### Verdict-state set is intentionally minimal
+
+`Open` / `ClarificationRequired` / `RequestedChanges` / `Approved` /
+`Denied` covers the common shapes without committing to any
+specific PR workflow. Github-style (`Commented`, `Dismissed`)
+and granular ones (`Nit`, `Blocked`) were considered. The set
+can grow without breaking older readers — unknown states are
+preserved verbatim.
+
+### Heading-shift trick deliberately not used
+
+An earlier draft shifted user-authored `# Foo` headings by +3
+levels on write (so they became `#### Foo` on disk) to avoid
+colliding with structural H1/H2. Dropped in favour of the
+"all user content is indented" invariant: indented `# Foo` is
+just `  # Foo` on disk, which our column-0-only parser ignores
+for section detection. No shift, no escape, no round-trip
+ambiguity.
+
+### Version 0 advisory
+
+Don't build third-party tooling against v0 yet — or do, but pin
+to a specific spec commit and expect to update. When v1 ships,
+the v0→v1 transition strategy will be defined; the most likely
+shape is a one-shot migration command provided by the reference
+implementation. Versions ≥ 1 will follow strict semver.
